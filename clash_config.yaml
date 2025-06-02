@@ -1,3 +1,89 @@
+proxy-groups:
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Static.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    name: MANUAL
+    type: select
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Urltest.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    name: AUTO
+    type: url-test
+    interval: 300
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/OpenAI.png
+    name: AIGC
+    type: select
+    proxies:
+      - US AUTO
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Telegram.png
+    name: Telegram
+    type: select
+    proxies:
+      - HK AUTO
+      - US AUTO
+      - RU AUTO
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Google.png
+    name: Google
+    type: select
+    proxies:
+      - HK AUTO
+      - US AUTO
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/YouTube.png
+    name: YouTube
+    type: select
+    proxies:
+      - HK AUTO
+      - US AUTO
+      - RU AUTO
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/HK.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)香港|Hong Kong|HK|🇭🇰
+    name: HK AUTO
+    type: url-test
+    interval: 300
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/US.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)美国|USA|🇺🇸
+    name: US AUTO
+    type: url-test
+    interval: 300
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/RU.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)俄罗斯|Russia|RU|🇷🇺
+    name: RU AUTO
+    type: url-test
+    interval: 300
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/CN.png
+    name: DIRECT_CN
+    type: select
+    proxies:
+      - DIRECT
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Global.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    proxies:
+      - MANUAL
+      - AUTO
+      - AIGC
+      - Telegram
+      - Google
+      - YouTube
+      - HK AUTO
+      - US AUTO
+      - RU AUTO
+      - DIRECT_CN
+    name: GLOBAL
+    type: select
+
+    
 rule-providers:
   private:
     url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/private.yaml
@@ -104,91 +190,6 @@ rule-providers:
     interval: 86400
     format: yaml
     type: http
-
-proxy-groups:
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Static.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    name: MANUAL
-    type: select
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Urltest.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    name: AUTO
-    type: url-test
-    interval: 300
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/OpenAI.png
-    name: AIGC
-    type: select
-    proxies:
-      - US AUTO
-      - MANUAL
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Telegram.png
-    name: Telegram
-    type: select
-    proxies:
-      - HK AUTO
-      - US AUTO
-      - RU AUTO
-      - MANUAL
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Google.png
-    name: Google
-    type: select
-    proxies:
-      - HK AUTO
-      - US AUTO
-      - MANUAL
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/YouTube.png
-    name: YouTube
-    type: select
-    proxies:
-      - HK AUTO
-      - US AUTO
-      - RU AUTO
-      - MANUAL
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/HK.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    filter: (?i)香港|Hong Kong|HK|🇭🇰
-    name: HK AUTO
-    type: url-test
-    interval: 300
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/US.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    filter: (?i)美国|USA|🇺🇸
-    name: US AUTO
-    type: url-test
-    interval: 300
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/RU.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    filter: (?i)俄罗斯|Russia|RU|🇷🇺
-    name: RU AUTO
-    type: url-test
-    interval: 300
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/CN.png
-    name: DIRECT_CN
-    type: select
-    proxies:
-      - DIRECT
-      - MANUAL
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Global.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    proxies:
-      - MANUAL
-      - AUTO
-      - AIGC
-      - Telegram
-      - Google
-      - YouTube
-      - HK AUTO
-      - US AUTO
-      - RU AUTO
-      - DIRECT_CN
-    name: GLOBAL
-    type: select
 
 rules:
   - "RULE-SET,private,DIRECT"
