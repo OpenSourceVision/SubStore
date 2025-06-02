@@ -109,14 +109,8 @@ proxy-groups:
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Static.png
     include-all: true
     exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    name: PROXY
+    name: MANUAL
     type: select
-    proxies:
-      - AUTO
-      - HK AUTO
-      - SG AUTO
-      - US AUTO
-      - RU AUTO
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Urltest.png
     include-all: true
     exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
@@ -127,43 +121,36 @@ proxy-groups:
     name: AIGC
     type: select
     proxies:
-      - SG AUTO
       - US AUTO
+      - MANUAL
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Telegram.png
     name: Telegram
     type: select
     proxies:
       - HK AUTO
-      - SG AUTO
       - US AUTO
       - RU AUTO
+      - MANUAL
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Google.png
     name: Google
     type: select
     proxies:
       - HK AUTO
-      - SG AUTO
       - US AUTO
+      - MANUAL
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/YouTube.png
     name: YouTube
     type: select
     proxies:
       - HK AUTO
-      - SG AUTO
       - US AUTO
       - RU AUTO
+      - MANUAL
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/HK.png
     include-all: true
     exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
     filter: (?i)香港|Hong Kong|HK|🇭🇰
     name: HK AUTO
-    type: url-test
-    interval: 300
-  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/SG.png
-    include-all: true
-    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
-    filter: (?i)新加坡|Singapore|🇸🇬
-    name: SG AUTO
     type: url-test
     interval: 300
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/US.png
@@ -180,25 +167,33 @@ proxy-groups:
     name: RU AUTO
     type: url-test
     interval: 300
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/CN.png
+    name: DIRECT_CN
+    type: select
+    proxies:
+      - DIRECT
+      - MANUAL
   - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Global.png
     include-all: true
     exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
     proxies:
-      - PROXY
+      - MANUAL
       - AUTO
       - AIGC
       - Telegram
       - Google
       - YouTube
       - HK AUTO
-      - SG AUTO
       - US AUTO
       - RU AUTO
+      - DIRECT_CN
     name: GLOBAL
     type: select
 
 rules:
   - "RULE-SET,private,DIRECT"
+  - "RULE-SET,cn_domain,DIRECT_CN"
+  - "RULE-SET,cn_ip,DIRECT_CN"
   - "RULE-SET,bing,AIGC"
   - "RULE-SET,copilot,AIGC"
   - "RULE-SET,bard,AIGC"
@@ -207,10 +202,8 @@ rules:
   - "RULE-SET,youtube,YouTube"
   - "RULE-SET,google_domain,Google"
   - "RULE-SET,google_ip,Google"
-  - "RULE-SET,steam,PROXY"
+  - "RULE-SET,steam,MANUAL"
   - "RULE-SET,telegram_domain,Telegram"
   - "RULE-SET,telegram_ip,Telegram"
-  - "RULE-SET,geolocation-!cn,PROXY"
-  - "RULE-SET,cn_domain,DIRECT"
-  - "RULE-SET,cn_ip,DIRECT"
-  - "MATCH,PROXY"
+  - "RULE-SET,geolocation-!cn,MANUAL"
+  - "MATCH,MANUAL"
