@@ -1,0 +1,462 @@
+proxy-groups:
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    name: MANUAL
+    type: select
+    proxies:
+      - US AUTO
+      - JP AUTO
+      - SG AUTO
+      - KR AUTO
+      - TW AUTO
+      - HK AUTO
+      - RU AUTO
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/ChatGPT.png
+    name: AIGC
+    type: select
+    proxies:
+      - US AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png
+    name: Microsoft
+    type: select
+    proxies:
+      - DIRECT_CN
+      - US AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/GitHub.png
+    name: GitHub
+    type: select
+    proxies:
+      - US AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Apple.png
+    name: Apple
+    type: select
+    proxies:
+      - DIRECT_CN
+      - US AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png
+    name: Netflix
+    type: select
+    proxies:
+      - SG AUTO
+      - US AUTO
+      - JP AUTO
+      - KR AUTO
+      - TW AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Disney+.png
+    name: Disney
+    type: select
+    proxies:
+      - SG AUTO
+      - US AUTO
+      - JP AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Spotify.png
+    name: Spotify
+    type: select
+    proxies:
+      - US AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png
+    name: TikTok
+    type: select
+    proxies:
+      - SG AUTO
+      - US AUTO
+      - JP AUTO
+      - KR AUTO
+      - TW AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Telegram_X.png
+    name: Telegram
+    type: select
+    proxies:
+      - US AUTO
+      - SG AUTO
+      - HK AUTO
+      - RU AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/YouTube.png
+    name: YouTube
+    type: select
+    proxies:
+      - RU AUTO
+      - US AUTO
+      - SG AUTO
+      - JP AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png
+    name: Google
+    type: select
+    proxies:
+      - US AUTO
+      - SG AUTO
+      - JP AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png
+    name: Games
+    type: select
+    proxies:
+      - DIRECT_CN
+      - US AUTO
+      - SG AUTO
+      - JP AUTO
+      - HK AUTO
+      - MANUAL
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/CloudFlare.png
+    name: Cloudflare
+    type: select
+    proxies:
+      - US AUTO
+      - SG AUTO
+      - JP AUTO
+      - HK AUTO
+      - MANUAL
+  # 地区分组
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/United_States.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)美国|USA|United States|US|🇺🇸
+    name: US AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Japan.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)日本|Japan|JP|🇯🇵
+    name: JP AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Singapore.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)新加坡|Singapore|SG|🇸🇬
+    name: SG AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Korea.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)韩国|Korea|KR|🇰🇷
+    name: KR AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Taiwan.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)台湾|Taiwan|TW|🇹🇼
+    name: TW AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Hong_Kong.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)香港|Hong Kong|HK|🇭🇰
+    name: HK AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    filter: (?i)俄罗斯|Russia|RU|🇷🇺
+    name: RU AUTO
+    type: url-test
+    interval: 300
+  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China.png
+    name: DIRECT_CN
+    type: select
+    proxies:
+      - DIRECT
+      - MANUAL
+  - icon: https://testingcf.jsdelivr.net/gh/Orz-3/mini@master/Color/Global.png
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    proxies:
+      - MANUAL
+      - AIGC
+      - Microsoft
+      - GitHub
+      - Apple
+      - Netflix
+      - Disney
+      - Spotify
+      - TikTok
+      - Telegram
+      - YouTube
+      - Google
+      - Games
+      - Cloudflare
+      - US AUTO
+      - JP AUTO
+      - SG AUTO
+      - KR AUTO
+      - TW AUTO
+      - HK AUTO
+      - RU AUTO
+      - DIRECT_CN
+    name: GLOBAL
+    type: select
+
+    
+rule-providers:
+  private:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/private.yaml
+    path: ./ruleset/private.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+  cn_domain:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.yaml
+    path: ./ruleset/cn_domain.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+  # 科技公司
+  microsoft:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Microsoft/Microsoft.yaml
+    path: ./ruleset/microsoft.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  github:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/GitHub/GitHub.yaml
+    path: ./ruleset/github.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  apple:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Apple/Apple.yaml
+    path: ./ruleset/apple.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  google_domain:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/google.yaml
+    path: ./ruleset/google_domain.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+  google_ip:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/google.yaml
+    path: ./ruleset/google_ip.yaml
+    behavior: ipcidr
+    interval: 86400
+    format: yaml
+    type: http
+  # 流媒体
+  netflix:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Netflix/Netflix.yaml
+    path: ./ruleset/netflix.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  disney:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Disney/Disney.yaml
+    path: ./ruleset/disney.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  spotify:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Spotify/Spotify.yaml
+    path: ./ruleset/spotify.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  youtube:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/YouTube/YouTube.yaml
+    path: ./ruleset/youtube.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  tiktok:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/TikTok/TikTok.yaml
+    path: ./ruleset/tiktok.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # 社交通讯
+  telegram_domain:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/telegram.yaml
+    path: ./ruleset/telegram_domain.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+  telegram_ip:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/telegram.yaml
+    path: ./ruleset/telegram_ip.yaml
+    behavior: ipcidr
+    interval: 86400
+    format: yaml
+    type: http
+  twitter:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Twitter/Twitter.yaml
+    path: ./ruleset/twitter.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  facebook:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Facebook/Facebook.yaml
+    path: ./ruleset/facebook.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # AI服务
+  bing:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Bing/Bing.yaml
+    path: ./ruleset/bing.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  copilot:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Copilot/Copilot.yaml
+    path: ./ruleset/copilot.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  claude:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Claude/Claude.yaml
+    path: ./ruleset/claude.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  bard:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/BardAI/BardAI.yaml
+    path: ./ruleset/bard.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  openai:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/OpenAI/OpenAI.yaml
+    path: ./ruleset/openai.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # 游戏平台
+  steam:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Steam/Steam.yaml
+    path: ./ruleset/steam.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  epicgames:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Epic/Epic.yaml
+    path: ./ruleset/epicgames.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  ubisoft:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/UBI/UBI.yaml
+    path: ./ruleset/ubisoft.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  ea:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/EA/EA.yaml
+    path: ./ruleset/ea.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # 工具类
+  paypal:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/PayPal/PayPal.yaml
+    path: ./ruleset/paypal.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # CloudFlare服务
+  cloudflare:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Cloudflare/Cloudflare.yaml
+    path: ./ruleset/cloudflare.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+  # 基础规则
+  geolocation-!cn:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-!cn.yaml
+    path: ./ruleset/geolocation-!cn.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+  cn_ip:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.yaml
+    path: ./ruleset/cn_ip.yaml
+    behavior: ipcidr
+    interval: 86400
+    format: yaml
+    type: http
+
+rules:
+  # 基础规则
+  - "RULE-SET,private,DIRECT"
+  - "RULE-SET,cn_domain,DIRECT_CN"
+  - "RULE-SET,cn_ip,DIRECT_CN"
+  # 科技公司
+  - "RULE-SET,microsoft,Microsoft"
+  - "RULE-SET,github,GitHub"
+  - "RULE-SET,apple,Apple"
+  - "RULE-SET,google_domain,Google"
+  - "RULE-SET,google_ip,Google"
+  # AI服务
+  - "RULE-SET,bing,AIGC"
+  - "RULE-SET,copilot,AIGC"
+  - "RULE-SET,bard,AIGC"
+  - "RULE-SET,openai,AIGC"
+  - "RULE-SET,claude,AIGC"
+  # 流媒体
+  - "RULE-SET,netflix,Netflix"
+  - "RULE-SET,disney,Disney"
+  - "RULE-SET,spotify,Spotify"
+  - "RULE-SET,youtube,YouTube"
+  - "RULE-SET,tiktok,TikTok"
+  # 社交通讯
+  - "RULE-SET,telegram_domain,Telegram"
+  - "RULE-SET,telegram_ip,Telegram"
+  - "RULE-SET,twitter,MANUAL"
+  - "RULE-SET,facebook,MANUAL"
+  # 游戏平台
+  - "RULE-SET,steam,Games"
+  - "RULE-SET,epicgames,Games"
+  - "RULE-SET,ubisoft,Games"
+  - "RULE-SET,ea,Games"
+  # 工具类
+  - "RULE-SET,paypal,MANUAL"
+  - "RULE-SET,cloudflare,Cloudflare"
+  # 兜底规则
+  - "RULE-SET,geolocation-!cn,MANUAL"
+  - "MATCH,MANUAL"
