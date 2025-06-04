@@ -113,7 +113,7 @@ proxy-groups:
       - JP AUTO
       - HK AUTO
       - MANUAL
-  - icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/CloudFlare.png
+  - icon: https://api.iconify.design/logos:cloudflare-icon.svg
     name: Cloudflare
     type: select
     proxies:
