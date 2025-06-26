@@ -22,12 +22,12 @@
  * - [method] 请求方法. 默认 get
  * - [timeout] 请求超时(单位: 毫秒) 默认 5000
  * - [api] 测入口的 API . 默认为 http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
- * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}}#{{index}} - {{proxy.name}}
+ * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}} {{index}} - {{proxy.name}}
  *            当使用 internal 时, 默认为 {{api.countryCode}} {{api.aso}} - {{proxy.name}}
  * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
  * - [valid] 验证 api 请求是否合法. 默认: ProxyUtils.isIP('{{api.ip || api.query}}')
- *           当使用 internal 时, Defaults to "{{api.countryCode || api.aso}}".length > 0
- * - [uniq_key] 设置缓存唯一键名包含的ಸ0的节点数据字段名匹配正则. 默认为 ^server$
+ *           当使用 internal 时, 默认为 "{{api.countryCode || api.aso}}".length > 0
+ * - [uniq_key] 设置缓存唯一键名包含的节点数据字段名匹配正则. 默认为 ^server$
  * - [entrance] 在节点上附加 _entrance 字段(API 响应数据), 默认不附加
  * - [remove_failed] 移除失败的节点. 默认不移除.
  * - [mmdb_country_path] 见 internal
@@ -52,7 +52,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
-  let format = $arguments.format || `{{api.country}} {{api.city}}#{{index}} - {{proxy.name}}`
+  let format = $arguments.format || `{{api.country}} {{api.city}} {{index}} - {{proxy.name}}`
   let utils
   if (internal) {
     if (isNode) {
@@ -84,10 +84,10 @@ async function operator(proxies = [], targetPlatform, context) {
   // 跟踪地区和序号
   const regionCount = {}
 
-  await executeAsyncTasks(
-    proxies.map(proxy => () => check(proxy, regionCount)),
-    { concurrency }
-  )
+  // 串行处理节点以确保序号按顺序分配
+  for (const proxy of proxies) {
+    await check(proxy, regionCount)
+  }
 
   if (remove_failed) {
     proxies = proxies.filter(p => {
@@ -254,13 +254,15 @@ async function operator(proxies = [], targetPlatform, context) {
       api = { ...api, ...extracted }
     }
 
-    // 生成地区键值并分配序号
+    // 生成地区键值并分配序号（两位数字格式）
     const regionKey = `${api.country || ''}_${api.city || ''}`
     regionCount[regionKey] = (regionCount[regionKey] || 0) + 1
-    const index = regionCount[regionKey]
+    const index = String(regionCount[regionKey]).padStart(2, '0') // 确保两位数字
 
     let f = format.replace(/\{\{(.*?)\}\}/g, '${$1}')
-    return eval(`\`${f}\``)
+    const result = eval(`\`${f}\``)
+    $.info(`[Formatter] 地区: ${regionKey}, 序号: ${index}, 格式化结果: ${result}`)
+    return result
   }
 
   function executeAsyncTasks(tasks, { wrap, result, concurrency = 1 } = {}) {
