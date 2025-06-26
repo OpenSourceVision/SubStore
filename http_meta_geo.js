@@ -28,7 +28,7 @@
  * - [method] 请求方法. 默认 get
  * - [api] 测落地的 API . 默认为 http://ip-api.com/json?lang=zh-CN
  *         当使用 internal 时, 默认为 http://checkip.amazonaws.com
- * - [format] 自定义格式, 从 节点(proxy) 和 API 响应(api) 中取数据. 默认为: {{api.country}} {{api.city}} {{序号}}
+ * - [format] 自定义格式, 从 节点(proxy) 和 API 响应(api) 中取数据. 默认为: {{api.country}} {{api.isp}} - {{proxy.name}}
  *            当使用 internal 时, 默认为 {{api.countryCode}} {{api.aso}} - {{proxy.name}}
  * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
  * - [geo] 在节点上附加 _geo 字段, 默认不附加
@@ -71,7 +71,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const mmdb_country_path = $arguments.mmdb_country_path
   const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
-  let format = $arguments.format || '{{api.country}} {{api.city}} {{序号}}'
+  let format = $arguments.format || '{{api.country}} {{api.isp}} - {{proxy.name}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
   let utils
   if (internal) {
@@ -94,6 +94,7 @@ async function operator(proxies = [], targetPlatform, context) {
             node[key] = proxy[key]
           }
         }
+        // $.info(JSON.stringify(node, null, 2))
         internalProxies.push({ ...node, _proxies_index: index })
       } else {
         proxies[index]._incompatible = true
@@ -102,11 +103,9 @@ async function operator(proxies = [], targetPlatform, context) {
       $.error(e)
     }
   })
+  // $.info(JSON.stringify(internalProxies, null, 2))
   $.info(`核心支持节点数: ${internalProxies.length}/${proxies.length}`)
   if (!internalProxies.length) return proxies
-
-  // 用于跟踪相同地区的计数器
-  const regionCounter = new Map()
 
   if (cacheEnabled) {
     try {
@@ -117,15 +116,11 @@ async function operator(proxies = [], targetPlatform, context) {
         const cached = cache.get(id)
         if (cached) {
           if (cached.api) {
-            const regionKey = `${cached.api.country}-${cached.api.city}`
-            regionCounter.set(regionKey, (regionCounter.get(regionKey) || 0) + 1)
-            const seq = regionCounter.get(regionKey)
             proxies[proxy._proxies_index].name = formatter({
               proxy: proxies[proxy._proxies_index],
               api: cached.api,
               format,
               regex,
-              seq,
             })
             proxies[proxy._proxies_index]._geo = cached.api
           } else {
@@ -183,11 +178,19 @@ async function operator(proxies = [], targetPlatform, context) {
   $.info(`等待 ${http_meta_start_delay / 1000} 秒后开始检测`)
   await $.wait(http_meta_start_delay)
 
-  const concurrency = parseInt($arguments.concurrency || 10)
+  const concurrency = parseInt($arguments.concurrency || 10) // 一组并发数
   await executeAsyncTasks(
     internalProxies.map(proxy => () => check(proxy)),
     { concurrency }
   )
+  // const batches = []
+  // for (let i = 0; i < internalProxies.length; i += concurrency) {
+  //   const batch = internalProxies.slice(i, i + concurrency)
+  //   batches.push(batch)
+  // }
+  // for (const batch of batches) {
+  //   await Promise.all(batch.map(check))
+  // }
 
   // stop http meta
   try {
@@ -233,22 +236,21 @@ async function operator(proxies = [], targetPlatform, context) {
   return proxies
 
   async function check(proxy) {
+    // $.info(`[${proxy.name}] 检测`)
+    // $.info(`检测 ${JSON.stringify(proxy, null, 2)}`)
     const id = cacheEnabled ? getCacheId({ proxy, url, format, regex }) : undefined
+    // $.info(`检测 ${id}`)
     try {
       const cached = cache.get(id)
       if (cacheEnabled && cached) {
         if (cached.api) {
           $.info(`[${proxy.name}] 使用成功缓存`)
           $.log(`[${proxy.name}] api: ${JSON.stringify(cached.api, null, 2)}`)
-          const regionKey = `${cached.api.country}-${cached.api.city}`
-          regionCounter.set(regionKey, (regionCounter.get(regionKey) || 0) + 1)
-          const seq = regionCounter.get(regionKey)
           proxies[proxy._proxies_index].name = formatter({
             proxy: proxies[proxy._proxies_index],
             api: cached.api,
             format,
             regex,
-            seq,
           })
           if (geoEnabled) proxies[proxy._proxies_index]._geo = cached.api
           return
@@ -261,6 +263,7 @@ async function operator(proxies = [], targetPlatform, context) {
           }
         }
       }
+      // $.info(JSON.stringify(proxy, null, 2))
       const index = internalProxies.indexOf(proxy)
       const startedAt = Date.now()
 
@@ -292,10 +295,7 @@ async function operator(proxies = [], targetPlatform, context) {
       }
 
       if (status == 200) {
-        const regionKey = `${api.country}-${api.city}`
-        regionCounter.set(regionKey, (regionCounter.get(regionKey) || 0) + 1)
-        const seq = regionCounter.get(regionKey)
-        proxies[proxy._proxies_index].name = formatter({ proxy: proxies[proxy._proxies_index], api, format, regex, seq })
+        proxies[proxy._proxies_index].name = formatter({ proxy: proxies[proxy._proxies_index], api, format, regex })
         proxies[proxy._proxies_index]._geo = api
         if (cacheEnabled) {
           $.info(`[${proxy.name}] 设置成功缓存`)
@@ -317,7 +317,7 @@ async function operator(proxies = [], targetPlatform, context) {
       }
     }
   }
-
+  // 请求
   async function http(opt = {}) {
     const METHOD = opt.method || $arguments.method || 'get'
     const TIMEOUT = parseFloat(opt.timeout || $arguments.timeout || 5000)
@@ -329,9 +329,11 @@ async function operator(proxies = [], targetPlatform, context) {
       try {
         return await $.http[METHOD]({ ...opt, timeout: TIMEOUT })
       } catch (e) {
+        // $.error(e)
         if (count < RETRIES) {
           count++
           const delay = RETRY_DELAY * count
+          // $.info(`第 ${count} 次请求失败: ${e.message || e}, 等待 ${delay / 1000}s 后重试`)
           await $.wait(delay)
           return await fn()
         } else {
@@ -341,7 +343,6 @@ async function operator(proxies = [], targetPlatform, context) {
     }
     return await fn()
   }
-
   function lodash_get(source, path, defaultValue = undefined) {
     const paths = path.replace(/\[(\d+)\]/g, '.$1').split('.')
     let result = source
@@ -353,8 +354,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
     return result
   }
-
-  function formatter({ proxy = {}, api = {}, format = '', regex = '', seq = 1 }) {
+  function formatter({ proxy = {}, api = {}, format = '', regex = '' }) {
     if (regex) {
       const regexPairs = regex.split(/\s*;\s*/g).filter(Boolean)
       const extracted = {}
@@ -374,13 +374,11 @@ async function operator(proxies = [], targetPlatform, context) {
     let f = format.replace(/\{\{(.*?)\}\}/g, '${$1}')
     return eval(`\`${f}\``)
   }
-
   function getCacheId({ proxy = {}, url, format, regex }) {
     return `http-meta:geo:${url}:${format}:${regex}:${internal}:${JSON.stringify(
       Object.fromEntries(Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key)))
     )}`
   }
-
   function executeAsyncTasks(tasks, { wrap, result, concurrency = 1 } = {}) {
     return new Promise(async (resolve, reject) => {
       try {
