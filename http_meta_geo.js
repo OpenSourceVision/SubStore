@@ -416,4 +416,34 @@ async function operator(proxies = [], targetPlatform, context) {
       }
     })
   }
+
+  // 检测完成后，统一重命名节点
+  // 统计每组“国家 城市”出现的次数，并编号
+  const nameCountMap = {};
+  const nameIndexMap = {};
+
+  proxies.forEach((p, idx) => {
+    // 只处理有 _geo 字段的节点
+    if (p._geo && (p._geo.country || p._geo.countryCode)) {
+      const country = p._geo.country || p._geo.countryCode || '';
+      const city = p._geo.city || '';
+      const key = `${country} ${city}`.trim();
+      nameCountMap[key] = (nameCountMap[key] || 0) + 1;
+    }
+  });
+
+  // 重新编号并命名
+  proxies.forEach((p, idx) => {
+    if (p._geo && (p._geo.country || p._geo.countryCode)) {
+      const country = p._geo.country || p._geo.countryCode || '';
+      const city = p._geo.city || '';
+      const key = `${country} ${city}`.trim();
+      if (!nameIndexMap[key]) nameIndexMap[key] = 1;
+      const index = nameIndexMap[key]++;
+      const num = index.toString().padStart(2, '0');
+      p.name = `${key} ${num}`.trim();
+    }
+  });
+
+  return proxies
 }
