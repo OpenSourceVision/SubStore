@@ -77,6 +77,26 @@ async function operator(proxies = [], targetPlatform, context) {
     { concurrency }
   )
 
+  // 新增：统计“国家 城市”出现次数，并重命名
+  // 只处理有 _entrance 字段的节点
+  const nameMap = {}
+  proxies.forEach(proxy => {
+    if (proxy._entrance) {
+      const country = proxy._entrance.country || ''
+      const city = proxy._entrance.city || ''
+      const key = `${country} ${city}`.trim()
+      if (!nameMap[key]) nameMap[key] = []
+      nameMap[key].push(proxy)
+    }
+  })
+  Object.keys(nameMap).forEach(key => {
+    nameMap[key].forEach((proxy, idx) => {
+      // 序号从 1 开始，补零
+      const num = String(idx + 1).padStart(2, '0')
+      proxy.name = `${key} ${num}`.trim()
+    })
+  })
+
   if (remove_failed) {
     proxies = proxies.filter(p => {
       if (remove_failed && !p._entrance) {
