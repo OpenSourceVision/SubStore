@@ -1,6 +1,14 @@
 /**
  * 节点信息(入口版)
  *
+ * ⚠️ 本脚本不进行域名解析 如有需要 可在节点操作中添加域名解析
+ *
+ * 查看说明: https://t.me/zhetengsha/1358
+ *
+ * 落地版脚本请查看: https://t.me/zhetengsha/1269
+ *
+ * 欢迎加入 Telegram 群组 https://t.me/zhetengsha
+ *
  * 参数
  * - [retries] 重试次数 默认 1
  * - [retry_delay] 重试延时(单位: 毫秒) 默认 1000
@@ -14,12 +22,12 @@
  * - [method] 请求方法. 默认 get
  * - [timeout] 请求超时(单位: 毫秒) 默认 5000
  * - [api] 测入口的 API . 默认为 http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
- * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}} - {{proxy.name}}
+ * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}}#{{index}} - {{proxy.name}}
  *            当使用 internal 时, 默认为 {{api.countryCode}} {{api.aso}} - {{proxy.name}}
  * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
  * - [valid] 验证 api 请求是否合法. 默认: ProxyUtils.isIP('{{api.ip || api.query}}')
- *           当使用 internal 时, 默认为 "{{api.countryCode || api.aso}}".length > 0
- * - [uniq_key] 设置缓存唯一键名包含的节点数据字段名匹配正则. 默认为 ^server$
+ *           当使用 internal 时, Defaults to "{{api.countryCode || api.aso}}".length > 0
+ * - [uniq_key] 设置缓存唯一键名包含的ಸ0的节点数据字段名匹配正则. 默认为 ^server$
  * - [entrance] 在节点上附加 _entrance 字段(API 响应数据), 默认不附加
  * - [remove_failed] 移除失败的节点. 默认不移除.
  * - [mmdb_country_path] 见 internal
@@ -44,7 +52,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
-  let format = $arguments.format || `{{api.country}} {{api.city}} - {{proxy.name}}`
+  let format = $arguments.format || `{{api.country}} {{api.city}}#{{index}} - {{proxy.name}}`
   let utils
   if (internal) {
     if (isNode) {
@@ -72,8 +80,12 @@ async function operator(proxies = [], targetPlatform, context) {
   const method = $arguments.method || 'get'
   const url = $arguments.api || `http://ip-api.com/json/{{proxy.server}}?lang=zh-CN`
   const concurrency = parseInt($arguments.concurrency || 10)
+
+  // 跟踪地区和序号
+  const regionCount = {}
+
   await executeAsyncTasks(
-    proxies.map(proxy => () => check(proxy)),
+    proxies.map(proxy => () => check(proxy, regionCount)),
     { concurrency }
   )
 
@@ -97,7 +109,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
   return proxies
 
-  async function check(proxy) {
+  async function check(proxy, regionCount) {
     const id = cacheEnabled
       ? `entrance:${url}:${format}:${regex}:${internal}:${JSON.stringify(
           Object.fromEntries(
@@ -114,7 +126,7 @@ async function operator(proxies = [], targetPlatform, context) {
         if (cached.api) {
           $.info(`[${proxy.name}] 使用成功缓存`)
           $.log(`[${proxy.name}] api: ${JSON.stringify(cached.api, null, 2)}`)
-          proxy.name = formatter({ proxy, api: cached.api, format, regex })
+          proxy.name = formatter({ proxy, api: cached.api, format, regex, regionCount })
           proxy._entrance = cached.api
           return
         } else {
@@ -135,7 +147,7 @@ async function operator(proxies = [], targetPlatform, context) {
         }
         $.info(`[${proxy.name}] countryCode: ${api.countryCode}, aso: ${api.aso}`)
         if ((api.countryCode || api.aso) && eval(formatter({ api, format: valid, regex }))) {
-          proxy.name = formatter({ proxy, api, format, regex })
+          proxy.name = formatter({ proxy, api, format, regex, regionCount })
           proxy._entrance = api
           if (cacheEnabled) {
             $.info(`[${proxy.name}] 设置成功缓存`)
@@ -165,7 +177,7 @@ async function operator(proxies = [], targetPlatform, context) {
         latency = `${Date.now() - startedAt}`
         $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
         if (status == 200 && eval(formatter({ api, format: valid, regex }))) {
-          proxy.name = formatter({ proxy, api, format, regex })
+          proxy.name = formatter({ proxy, api, format, regex, regionCount })
           proxy._entrance = api
           if (cacheEnabled) {
             $.info(`[${proxy.name}] 设置成功缓存`)
@@ -224,7 +236,7 @@ async function operator(proxies = [], targetPlatform, context) {
     return result
   }
 
-  function formatter({ proxy = {}, api = {}, format = '', regex = '' }) {
+  function formatter({ proxy = {}, api = {}, format = '', regex = '', regionCount = {} }) {
     if (regex) {
       const regexPairs = regex.split(/\s*;\s*/g).filter(Boolean)
       const extracted = {}
@@ -241,6 +253,11 @@ async function operator(proxies = [], targetPlatform, context) {
       }
       api = { ...api, ...extracted }
     }
+
+    // 生成地区键值并分配序号
+    const regionKey = `${api.country || ''}_${api.city || ''}`
+    regionCount[regionKey] = (regionCount[regionKey] || 0) + 1
+    const index = regionCount[regionKey]
 
     let f = format.replace(/\{\{(.*?)\}\}/g, '${$1}')
     return eval(`\`${f}\``)
