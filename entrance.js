@@ -61,7 +61,7 @@ async function operator(proxies = [], targetPlatform, context) {
       utils = $utils
     }
     format = $arguments.format || `{{api.country}} {{api.city}}`
-    valid = $arguments.valid || `"{{api.country || api.city}}".length > 0`
+    valid = $arguments.valid || `"{{api.countryCode || api.aso}}".length > 0`
   }
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
   const remove_failed = $arguments.remove_failed
