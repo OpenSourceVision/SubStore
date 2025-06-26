@@ -14,7 +14,7 @@
  * - [method] 请求方法. 默认 get
  * - [timeout] 请求超时(单位: 毫秒) 默认 5000
  * - [api] 测入口的 API . 默认为 http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
- * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}} - {{proxy.name}}
+ * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}}
  *            当使用 internal 时, 默认为 {{api.country}} {{api.city}}
  * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
  * - [valid] 验证 api 请求是否合法. 默认: ProxyUtils.isIP('{{api.ip || api.query}}')
@@ -44,7 +44,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
-  let format = $arguments.format || `{{api.country}} {{api.city}} - {{proxy.name}}`
+  let format = $arguments.format || `{{api.country}} {{api.city}}`
   let utils
   if (internal) {
     if (isNode) {
@@ -61,7 +61,7 @@ async function operator(proxies = [], targetPlatform, context) {
       utils = $utils
     }
     format = $arguments.format || `{{api.country}} {{api.city}}`
-    valid = $arguments.valid || `"{{api.countryCode || api.aso}}".length > 0`
+    valid = $arguments.valid || `"{{api.country || api.city}}".length > 0`
   }
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
   const remove_failed = $arguments.remove_failed
