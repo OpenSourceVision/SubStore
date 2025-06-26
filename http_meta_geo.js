@@ -1,12 +1,7 @@
 /**
  *
  * 节点信息(适配 Sub-Store Node.js 版)
- * 
- * App 版请使用 geo.js
  *
- * 查看说明: https://t.me/zhetengsha/1269
- *
- * 欢迎加入 Telegram 群组 https://t.me/zhetengsha
  *
  * HTTP META(https://github.com/xream/http-meta) 参数
  * - [http_meta_protocol] 协议 默认: http
@@ -28,8 +23,8 @@
  * - [method] 请求方法. 默认 get
  * - [api] 测落地的 API . 默认为 http://ip-api.com/json?lang=zh-CN
  *         当使用 internal 时, 默认为 http://checkip.amazonaws.com
- * - [format] 自定义格式, 从 节点(proxy) 和 API 响应(api) 中取数据. 默认为: {{api.country}} {{api.isp}} - {{proxy.name}}
- *            当使用 internal 时, 默认为 {{api.countryCode}} {{api.aso}} - {{proxy.name}}
+ * - [format] 自定义格式, 从 节点(proxy) 和 API 响应(api) 中取数据. 默认为: {{api.country}} {{api.city}}
+ *            当使用 internal 时, 默认为 {{api.country}} {{api.city}}
  * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
  * - [geo] 在节点上附加 _geo 字段, 默认不附加
  * - [incompatible] 在节点上附加 _incompatible 字段来标记当前客户端不兼容该协议, 默认不附加
@@ -71,7 +66,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const mmdb_country_path = $arguments.mmdb_country_path
   const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
-  let format = $arguments.format || '{{api.country}} {{api.isp}} - {{proxy.name}}'
+  let format = $arguments.format || '{{api.country}} {{api.city}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
   let utils
   if (internal) {
@@ -80,7 +75,7 @@ async function operator(proxies = [], targetPlatform, context) {
       `[MMDB] GeoLite2 Country 数据库文件路径: ${mmdb_country_path || eval('process.env.SUB_STORE_MMDB_COUNTRY_PATH')}`
     )
     $.info(`[MMDB] GeoLite2 ASN 数据库文件路径: ${mmdb_asn_path || eval('process.env.SUB_STORE_MMDB_ASN_PATH')}`)
-    format = $arguments.format || `{{api.countryCode}} {{api.aso}} - {{proxy.name}}`
+    format = $arguments.format || `{{api.country}} {{api.city}}`
     url = $arguments.api || 'http://checkip.amazonaws.com'
   }
 
