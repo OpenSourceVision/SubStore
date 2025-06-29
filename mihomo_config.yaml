@@ -59,8 +59,8 @@ proxy-groups:
   - name: Select
     type: select
     proxies:
-      - Node
       - US
+      - Node
       - RU
     icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
 
