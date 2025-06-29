@@ -1,4 +1,5 @@
-# Mihomo完整配置文件
+
+# 端口设置
 port: 7890
 socks-port: 7891
 redir-port: 7892
@@ -8,66 +9,50 @@ tproxy-port: 7895
 allow-lan: true
 mode: rule
 log-level: info
-
-external-controller: 0.0.0.0:9090
+# 面板设置
+external-controller: 127.0.0.1:9090
 external-ui: ui
 external-ui-name: zashboard
 external-ui-url: https://gh-proxy.com/github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip
-secret: "123456"
-ipv6: true
-allow-lan: true
-unified-delay: false
-tcp-concurrent: true
-external-controller: 127.0.0.1:9090
-external-ui: ui
-external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+secret: ""
 
-find-process-mode: strict
-global-client-fingerprint: chrome
-
-profile:
-  store-selected: true
-  store-fake-ip: true
-
-sniffer:
-  enable: true
-  sniff:
-    HTTP:
-      ports: [80, 8080-8880]
-      override-destination: true
-    TLS:
-      ports: [443, 8443]
-    QUIC:
-      ports: [443, 8443]
-  skip-domain:
-    - "Mijia Cloud"
-    - "+.push.apple.com"
-
-tun:
-  enable: true
-  stack: mixed
-  dns-hijack:
-    - "any:53"
-    - "tcp://any:53"
-  auto-route: true
-  auto-redirect: true
-  auto-detect-interface: true
-
+# DNS 设置
 dns:
   enable: true
+  listen: 0.0.0.0:7874
   ipv6: true
   enhanced-mode: fake-ip
+  fake-ip-range: 198.20.0.1/16
+  nameserver:
+    - 223.5.5.5
   fake-ip-filter:
-    - "*"
-    - "+.lan"
-    - "+.local"
-    - "+.market.xiaomi.com"
+    - +.lan
+    - +.local
+    - geosite:cn
   default-nameserver:
     - tls://223.5.5.5
     - tls://223.6.6.6
   nameserver:
     - https://doh.pub/dns-query
     - https://dns.alidns.com/dns-query
+
+ipv6: true
+
+
+# TUN 模块
+tun:
+  enable: true
+  stack: gvisor
+  device: utun
+  endpoint-independent-nat: true
+  auto-route: false
+  auto-detect-interface: false
+  auto-redirect: false
+  strict-route: false
+
+profile:
+  store-selected: true
+  store-fake-ip: true
 
 proxy-groups:
   # 手动选择分组 - 只包含地区分组和Node分组
