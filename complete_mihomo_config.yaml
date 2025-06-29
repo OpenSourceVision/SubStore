@@ -1,0 +1,322 @@
+# 端口设置
+port: 7890
+socks-port: 7891
+redir-port: 7892
+mixed-port: 7893
+tproxy-port: 7895
+
+allow-lan: true
+mode: rule
+log-level: info
+# 面板设置
+external-controller: 127.0.0.1:9090
+external-ui: ui
+external-ui-name: zashboard
+external-ui-url: https://gh-proxy.com/github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip
+secret: ""
+
+# DNS 设置 - 防DNS泄露优化版本
+dns:
+  enable: true
+  listen: 0.0.0.0:7874
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.20.0.1/16
+  
+  # 默认DNS服务器 - 用于解析DoH/DoT服务器域名
+  default-nameserver:
+    - 223.5.5.5
+    - 223.6.6.6
+    - 8.8.8.8
+    - 1.1.1.1
+  
+  # 主DNS服务器 - 优先使用加密DNS
+  nameserver:
+    # 国外加密DNS (通过代理)
+    - https://dns.cloudflare.com/dns-query
+    - https://dns.google/dns-query
+    - tls://dns.cloudflare.com
+    - tls://dns.google
+    # 国内加密DNS (直连)
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+    - tls://223.5.5.5
+    - tls://223.6.6.6
+  
+  # 按地区分流DNS查询
+  nameserver-policy:
+    # 国内域名使用国内DNS
+    "geosite:cn": 
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+      - tls://223.5.5.5
+    # 国外域名使用国外DNS (通过代理)
+    "geosite:geolocation-!cn":
+      - https://dns.cloudflare.com/dns-query
+      - https://dns.google/dns-query
+      - tls://dns.cloudflare.com
+    # AI服务专用DNS
+    "geosite:openai":
+      - https://dns.cloudflare.com/dns-query
+      - https://dns.google/dns-query
+    "geosite:google":
+      - https://dns.cloudflare.com/dns-query
+      - https://dns.google/dns-query
+    # DNS服务器域名直连解析
+    "dns.cloudflare.com":
+      - 223.5.5.5
+      - 223.6.6.6
+    "dns.google":
+      - 223.5.5.5
+      - 223.6.6.6
+    "doh.pub":
+      - 223.5.5.5
+      - 223.6.6.6
+    "dns.alidns.com":
+      - 223.5.5.5
+      - 223.6.6.6
+  
+  # fake-ip过滤 - 这些域名不使用fake-ip
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.localhost"
+    - "geosite:cn"
+    - "geosite:private"
+    # 系统服务
+    - "+.push.apple.com"
+    - "+.apple.com"
+    - "+.microsoft.com"
+    - "+.windows.com"
+    - "+.msftncsi.com"
+    - "+.msftconnecttest.com"
+    - "+.office.com"
+    - "+.outlook.com"
+    - "+.live.com"
+    # 游戏和其他需要真实IP的服务
+    - "+.battle.net"
+    - "+.blizzard.com"
+    - "+.steam.com"
+    - "+.steamcontent.com"
+    - "+.epicgames.com"
+    # 银行和支付
+    - "+.alipay.com"
+    - "+.taobao.com"
+    - "+.tmall.com"
+    - "+.jd.com"
+  
+  # 解析超时和重试设置
+  respect-rules: true
+  use-hosts: true
+  use-system-hosts: false
+
+ipv6: true
+
+# TUN模式配置 - 加强DNS劫持防护
+tun:
+  enable: true
+  stack: gvisor
+  device: utun
+  endpoint-independent-nat: true
+  auto-route: true
+  auto-detect-interface: true
+  auto-redirect: true
+  strict-route: true
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  # 排除特定网段
+  exclude-package:
+    - com.android.captiveportallogin
+  include-android-user:
+    - 0
+    - 10
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+proxy-groups:
+  # 手动选择分组 - 只包含地区分组和Node分组
+  - name: Select
+    type: select
+    proxies:
+      - US
+      - Node
+      - RU
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png
+
+  # Node分组 - 包含所有节点，手动选择，不自动测速
+  - name: Node
+    type: select
+    include-all: true
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Server.png
+
+  # 美国分组 - 自动测速
+  - name: US
+    type: url-test
+    include-all: true
+    filter: (?i)美国|美|US|USA|United States|America|San Francisco|Los Angeles|New York|Chicago|Miami|Dallas|Seattle|Phoenix|Denver|Atlanta
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/United_States.png
+
+  # 俄罗斯分组 - 自动测速
+  - name: RU
+    type: url-test
+    include-all: true
+    filter: (?i)俄罗斯|俄|RU|Russia|Moscow|Saint Petersburg|Novosibirsk|Yekaterinburg
+    exclude-filter: (?i)GB|Traffic|Expire|Premium|频道|订阅|ISP|流量|到期|重置
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png
+
+  # 国内直连分组
+  - name: CN
+    type: select
+    proxies:
+      - DIRECT
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China.png
+
+  # AI服务分组 - 只包含手动选择和美国分组
+  - name: AI
+    type: select
+    proxies:
+      - US
+      - Select
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/ChatGPT.png
+
+  # YouTube分组 - 只包含美国和俄罗斯分组，默认俄罗斯
+  - name: YouTube
+    type: select
+    proxies:
+      - RU
+      - US
+    icon: https://gh-proxy.com/https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/YouTube.png
+
+rule-providers:
+  # 私有网络
+  private:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/private.yaml
+    path: ./ruleset/private.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+
+  # 国内域名
+  cn_domain:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.yaml
+    path: ./ruleset/cn_domain.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+
+  # 国内IP
+  cn_ip:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.yaml
+    path: ./ruleset/cn_ip.yaml
+    behavior: ipcidr
+    interval: 86400
+    format: yaml
+    type: http
+
+  # YouTube规则
+  youtube:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/YouTube/YouTube.yaml
+    path: ./ruleset/youtube.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  # AI服务规则
+  openai:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/OpenAI/OpenAI.yaml
+    path: ./ruleset/openai.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  claude:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Claude/Claude.yaml
+    path: ./ruleset/claude.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  bard:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/BardAI/BardAI.yaml
+    path: ./ruleset/bard.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  copilot:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Copilot/Copilot.yaml
+    path: ./ruleset/copilot.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  bing:
+    url: https://testingcf.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Bing/Bing.yaml
+    path: ./ruleset/bing.yaml
+    behavior: classical
+    interval: 86400
+    format: yaml
+    type: http
+
+  # 非中国地区域名
+  geolocation-!cn:
+    url: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/geolocation-!cn.yaml
+    path: ./ruleset/geolocation-!cn.yaml
+    behavior: domain
+    interval: 86400
+    format: yaml
+    type: http
+
+rules:
+  # DNS服务器域名直连 - 防止DNS解析死循环
+  - DOMAIN,dns.cloudflare.com,DIRECT
+  - DOMAIN,dns.google,DIRECT
+  - DOMAIN,doh.pub,DIRECT
+  - DOMAIN,dns.alidns.com,DIRECT
+  - IP-CIDR,1.1.1.1/32,DIRECT
+  - IP-CIDR,1.0.0.1/32,DIRECT
+  - IP-CIDR,8.8.8.8/32,DIRECT
+  - IP-CIDR,8.8.4.4/32,DIRECT
+  - IP-CIDR,223.5.5.5/32,DIRECT
+  - IP-CIDR,223.6.6.6/32,DIRECT
+  
+  # 私有网络直连
+  - RULE-SET,private,DIRECT
+  
+  # 国内域名和IP直连
+  - RULE-SET,cn_domain,CN
+  - RULE-SET,cn_ip,CN
+  
+  # YouTube服务
+  - RULE-SET,youtube,YouTube
+  
+  # AI服务
+  - RULE-SET,openai,AI
+  - RULE-SET,claude,AI
+  - RULE-SET,bard,AI
+  - RULE-SET,copilot,AI
+  - RULE-SET,bing,AI
+  
+  # 非中国地区域名走手动选择
+  - RULE-SET,geolocation-!cn,Select
+  
+  # 兜底规则 - 其他所有流量走手动选择
+  - MATCH,Select
