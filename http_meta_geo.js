@@ -1,47 +1,49 @@
 /**
- *
- * 节点信息(适配 Sub-Store Node.js 版)
- *
- *
- * HTTP META(https://github.com/xream/http-meta) 参数
- * - [http_meta_protocol] 协议 默认: http
- * - [http_meta_host] 服务地址 默认: 127.0.0.1
- * - [http_meta_port] 端口号 默认: 9876
- * - [http_meta_authorization] Authorization 默认无
- * - [http_meta_start_delay] 初始启动延时(单位: 毫秒) 默认: 3000
- * - [http_meta_proxy_timeout] 每个节点耗时(单位: 毫秒). 此参数是为了防止脚本异常退出未关闭核心. 设置过小将导致核心过早退出. 目前逻辑: 启动初始的延时 + 每个节点耗时. 默认: 10000
- *
- * 其它参数
- * - [retries] 重试次数 默认 1
- * - [retry_delay] 重试延时(单位: 毫秒) 默认 1000
- * - [concurrency] 并发数 默认 10
- * - [timeout] 请求超时(单位: 毫秒) 默认 5000
- * - [internal] 使用内部方法获取 IP 信息. 默认 false
-                设置环境变量 SUB_STORE_MMDB_COUNTRY_PATH 和 SUB_STORE_MMDB_ASN_PATH, 或 传入 mmdb_country_path 和 mmdb_asn_path 参数(分别为 MaxMind GeoLite2 Country 和 GeoLite2 ASN 数据库 的路径)
-*              数据来自 GeoIP 数据库
-*              (因为懒) 开启后, 将认为远程 API 返回的响应内容为纯文本 IP 地址, 并用于内部方法
- * - [method] 请求方法. 默认 get
- * - [api] 测落地的 API . 默认为 http://ip-api.com/json?lang=zh-CN
- *         当使用 internal 时, 默认为 http://checkip.amazonaws.com
- * - [format] 自定义格式, 从 节点(proxy) 和 API 响应(api) 中取数据. 默认为: {{api.country}} {{api.city}}
- *            当使用 internal 时, 默认为 {{api.country}} {{api.city}}
- * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
- * - [geo] 在节点上附加 _geo 字段, 默认不附加
- * - [incompatible] 在节点上附加 _incompatible 字段来标记当前客户端不兼容该协议, 默认不附加
- * - [remove_incompatible] 移除当前客户端不兼容的协议. 默认不移除.
- * - [remove_failed] 移除失败的节点. 默认不移除.
- * - [mmdb_country_path] 见 internal
- * - [mmdb_asn_path] 见 internal
- * - [cache] 使用缓存. 默认不使用缓存
- * - [disable_failed_cache/ignore_failed_error] 禁用失败缓存. 即不缓存失败结果
- * 关于缓存时长
- * 当使用相关脚本时, 若在对应的脚本中使用参数开启缓存, 可设置持久化缓存 sub-store-csr-expiration-time 的值来自定义默认缓存时长, 默认为 172800000 (48 * 3600 * 1000, 即 48 小时)
- * 🎈Loon 可在插件中设置
- * 其他平台同理, 持久化缓存数据在 JSON 里
- * 可以在脚本的前面添加一个脚本操作, 实现保留 1 小时的缓存. 这样比较灵活
- * async function operator() {
- *     scriptResourceCache._cleanup(undefined, 1 * 3600 * 1000);
- * }
+ * 节点地理位置检测脚本 (HTTP META 版)
+ * 
+ * 通过 HTTP META 代理核心检测节点的落地地理位置信息，支持自定义命名格式
+ * 
+ * HTTP META 核心参数 (https://github.com/xream/http-meta)
+ * - [http_meta_protocol] 协议，默认: http
+ * - [http_meta_host] 服务地址，默认: 127.0.0.1
+ * - [http_meta_port] 端口号，默认: 9876
+ * - [http_meta_authorization] Authorization 认证头，默认无
+ * - [http_meta_start_delay] 初始启动延时(毫秒)，默认: 3000
+ * - [http_meta_proxy_timeout] 每个节点超时时间(毫秒)，默认: 10000
+ * 
+ * 检测参数
+ * - [retries] 重试次数，默认: 1
+ * - [retry_delay] 重试延时(毫秒)，默认: 1000
+ * - [concurrency] 并发数，默认: 10
+ * - [timeout] 请求超时(毫秒)，默认: 5000
+ * - [method] 请求方法，默认: get
+ * - [api] 地理位置检测 API，默认: http://ip-api.com/json?lang=zh-CN
+ * - [regex] 正则表达式提取数据，格式: a:x;b:y
+ * 
+ * 命名格式参数
+ * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
+ * - [show_country] 在最终名称中显示国家，默认: true
+ * - [show_city] 在最终名称中显示城市，默认: true
+ * - [show_isp] 在最终名称中显示 ISP，默认: false
+ * 
+ * 输出控制参数
+ * - [geo] 在节点上附加 _geo 字段，默认: false
+ * - [incompatible] 在节点上附加 _incompatible 字段，默认: false
+ * - [remove_incompatible] 移除不兼容的节点，默认: false
+ * - [remove_failed] 移除检测失败的节点，默认: false
+ * 
+ * 缓存参数
+ * - [cache] 启用缓存，默认: false
+ * - [disable_failed_cache] 禁用失败缓存，默认: false
+ * 
+ * 缓存时长配置:
+ * 设置持久化缓存 sub-store-csr-expiration-time 的值来自定义缓存时长
+ * 默认: 172800000 (48小时)
+ * 
+ * 示例用法:
+ * - 默认命名: "美国 纽约 01"
+ * - 包含 ISP: "美国 纽约 01 Cloudflare" (show_isp=true)
+ * - 仅国家: "美国 01" (show_city=false)
  */
 
 async function operator(proxies = [], targetPlatform, context) {
@@ -61,23 +63,12 @@ async function operator(proxies = [], targetPlatform, context) {
   const http_meta_start_delay = parseFloat($arguments.http_meta_start_delay ?? 3000)
   const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 10000)
   const method = $arguments.method || 'get'
-
-  const internal = $arguments.internal
-  const mmdb_country_path = $arguments.mmdb_country_path
-  const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
+  const show_country = $arguments.show_country !== false // 默认显示国家
+  const show_city = $arguments.show_city !== false // 默认显示城市
+  const show_isp = $arguments.show_isp === true // 默认不显示ISP
   let format = $arguments.format || '{{api.country}} {{api.city}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
-  let utils
-  if (internal) {
-    utils = new ProxyUtils.MMDB({ country: mmdb_country_path, asn: mmdb_asn_path })
-    $.info(
-      `[MMDB] GeoLite2 Country 数据库文件路径: ${mmdb_country_path || eval('process.env.SUB_STORE_MMDB_COUNTRY_PATH')}`
-    )
-    $.info(`[MMDB] GeoLite2 ASN 数据库文件路径: ${mmdb_asn_path || eval('process.env.SUB_STORE_MMDB_ASN_PATH')}`)
-    format = $arguments.format || `{{api.country}} {{api.city}}`
-    url = $arguments.api || 'http://checkip.amazonaws.com'
-  }
 
   const internalProxies = []
   proxies.map((proxy, index) => {
@@ -276,18 +267,9 @@ async function operator(proxies = [], targetPlatform, context) {
       let latency = ''
       latency = `${Date.now() - startedAt}`
       $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
-      if (internal) {
-        const ip = api.trim()
-        api = {
-          countryCode: utils.geoip(ip) || '',
-          aso: utils.ipaso(ip) || '',
-          asn: (utils.ipasn ? utils.ipasn(ip) : '') || '',
-        }
-      } else {
-        try {
-          api = JSON.parse(api)
-        } catch (e) {}
-      }
+      try {
+        api = JSON.parse(api)
+      } catch (e) {}
 
       if (status == 200) {
         proxies[proxy._proxies_index].name = formatter({ proxy: proxies[proxy._proxies_index], api, format, regex })
@@ -370,7 +352,7 @@ async function operator(proxies = [], targetPlatform, context) {
     return eval(`\`${f}\``)
   }
   function getCacheId({ proxy = {}, url, format, regex }) {
-    return `http-meta:geo:${url}:${format}:${regex}:${internal}:${JSON.stringify(
+    return `http-meta:geo:${url}:${format}:${regex}:${JSON.stringify(
       Object.fromEntries(Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key)))
     )}`
   }
@@ -418,16 +400,29 @@ async function operator(proxies = [], targetPlatform, context) {
   }
 
   // 检测完成后，统一重命名节点
-  // 统计每组“国家 城市”出现的次数，并编号
+  // 根据参数动态构建名称格式
   const nameCountMap = {};
   const nameIndexMap = {};
 
   proxies.forEach((p, idx) => {
     // 只处理有 _geo 字段的节点
     if (p._geo && (p._geo.country || p._geo.countryCode)) {
-      const country = p._geo.country || p._geo.countryCode || '';
-      const city = p._geo.city || '';
-      const key = `${country} ${city}`.trim();
+      const nameParts = [];
+      
+      // 添加国家信息
+      if (show_country) {
+        const country = p._geo.country || p._geo.countryCode || '';
+        if (country) nameParts.push(country);
+      }
+      
+      // 添加城市信息
+      if (show_city) {
+        const city = p._geo.city || '';
+        if (city) nameParts.push(city);
+      }
+      
+      // ISP信息不参与分组键，只在最终名称中显示
+      const key = nameParts.join(' ').trim() || '未知';
       nameCountMap[key] = (nameCountMap[key] || 0) + 1;
     }
   });
@@ -435,13 +430,37 @@ async function operator(proxies = [], targetPlatform, context) {
   // 重新编号并命名
   proxies.forEach((p, idx) => {
     if (p._geo && (p._geo.country || p._geo.countryCode)) {
-      const country = p._geo.country || p._geo.countryCode || '';
-      const city = p._geo.city || '';
-      const key = `${country} ${city}`.trim();
+      const nameParts = [];
+      
+      // 添加国家信息
+      if (show_country) {
+        const country = p._geo.country || p._geo.countryCode || '';
+        if (country) nameParts.push(country);
+      }
+      
+      // 添加城市信息
+      if (show_city) {
+        const city = p._geo.city || '';
+        if (city) nameParts.push(city);
+      }
+      
+      const key = nameParts.join(' ').trim() || '未知';
       if (!nameIndexMap[key]) nameIndexMap[key] = 1;
       const index = nameIndexMap[key]++;
       const num = index.toString().padStart(2, '0');
-      p.name = `${key} ${num}`.trim();
+      
+      // 构建最终名称：国家 城市 序号 ISP
+      let finalName = `${key} ${num}`;
+      
+      // 添加ISP信息到序号后面
+      if (show_isp) {
+        const isp = p._geo.isp || p._geo.org || p._geo.as || p._geo.aso || '';
+        if (isp) {
+          finalName += ` ${isp}`;
+        }
+      }
+      
+      p.name = finalName.trim();
     }
   });
 

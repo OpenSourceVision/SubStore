@@ -1,68 +1,51 @@
 /**
- * 节点信息(入口版)
- *
- * 参数
- * - [retries] 重试次数 默认 1
- * - [retry_delay] 重试延时(单位: 毫秒) 默认 1000
- * - [concurrency] 并发数 默认 10
- * - [internal] 使用内部方法获取 IP 信息. 默认 false
- *              支持以下几种运行环境:
- *              1. Surge/Loon(build >= 692) 等有 $utils.ipaso 和 $utils.geoip API 的 App
- *              2. Node.js 版 Sub-Store, 设置环境变量 SUB_STORE_MMDB_COUNTRY_PATH 和 SUB_STORE_MMDB_ASN_PATH, 或 传入 mmdb_country_path 和 mmdb_asn_path 参数(分别为 MaxMind GeoLite2 Country 和 GeoLite2 ASN 数据库 的路径)
- *              数据来自 GeoIP 数据库
- *              ⚠️ 要求节点服务器为 IP. 本脚本不进行域名解析 可在节点操作中添加域名解析
- * - [method] 请求方法. 默认 get
- * - [timeout] 请求超时(单位: 毫秒) 默认 5000
- * - [api] 测入口的 API . 默认为 http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
- * - [format] 自定义格式, 从 节点(proxy) 和 入口(api)中取数据. 默认为: {{api.country}} {{api.city}}
- *            当使用 internal 时, 默认为 {{api.country}} {{api.city}}
- * - [regex] 使用正则表达式从落地 API 响应(api)中取数据. 格式为 a:x;b:y 此时将使用正则表达式 x 和 y 来从 api 中取数据, 赋值给 a 和 b. 然后可在 format 中使用 {{api.a}} 和 {{api.b}}
- * - [valid] 验证 api 请求是否合法. 默认: ProxyUtils.isIP('{{api.ip || api.query}}')
- *           当使用 internal 时, 默认为 "{{api.countryCode || api.aso}}".length > 0
- * - [uniq_key] 设置缓存唯一键名包含的节点数据字段名匹配正则. 默认为 ^server$
- * - [entrance] 在节点上附加 _entrance 字段(API 响应数据), 默认不附加
- * - [remove_failed] 移除失败的节点. 默认不移除.
- * - [mmdb_country_path] 见 internal
- * - [mmdb_asn_path] 见 internal
- * - [cache] 使用缓存, 默认不使用缓存
- * - [disable_failed_cache/ignore_failed_error] 禁用失败缓存. 即不缓存失败结果
- * 关于缓存时长
- * 当使用相关脚本时, 若在对应的脚本中使用参数开启缓存, 可设置持久化缓存 sub-store-csr-expiration-time 的值来自定义默认缓存时长, 默认为 172800000 (48 * 3600 * 1000, 即 48 小时)
- * 🎈Loon 可在插件中设置
- * 其他平台同理, 持久化缓存数据在 JSON 里
- * 可以在脚本的前面添加一个脚本操作, 实现保留 1 小时的缓存. 这样比较灵活
- * async function operator() {
- *     scriptResourceCache._cleanup(undefined, 1 * 3600 * 1000);
- * }
+ * 节点入口地理位置检测脚本
+ * 
+ * 通过检测节点服务器的地理位置信息，支持自定义命名格式
+ * 
+ * 检测参数
+ * - [retries] 重试次数，默认: 1
+ * - [retry_delay] 重试延时(毫秒)，默认: 1000
+ * - [concurrency] 并发数，默认: 10
+ * - [timeout] 请求超时(毫秒)，默认: 5000
+ * - [method] 请求方法，默认: get
+ * - [api] 入口地理位置检测 API，默认: http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
+ * - [regex] 正则表达式提取数据，格式: a:x;b:y
+ * - [valid] API 响应验证条件，默认: ProxyUtils.isIP('{{api.ip || api.query}}')
+ * 
+ * 命名格式参数
+ * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
+ * - [show_country] 在最终名称中显示国家，默认: true
+ * - [show_city] 在最终名称中显示城市，默认: true
+ * - [show_isp] 在最终名称中显示 ISP，默认: false
+ * 
+ * 输出控制参数
+ * - [entrance] 在节点上附加 _entrance 字段，默认: false
+ * - [remove_failed] 移除检测失败的节点，默认: false
+ * 
+ * 缓存参数
+ * - [cache] 启用缓存，默认: false
+ * - [disable_failed_cache] 禁用失败缓存，默认: false
+ * - [uniq_key] 缓存唯一键字段匹配正则，默认: ^server$
+ * 
+ * 缓存时长配置:
+ * 设置持久化缓存 sub-store-csr-expiration-time 的值来自定义缓存时长
+ * 默认: 172800000 (48小时)
+ * 
+ * 示例用法:
+ * - 默认命名: "美国 纽约 01"
+ * - 包含 ISP: "美国 纽约 01 Cloudflare" (show_isp=true)
+ * - 仅国家: "美国 01" (show_city=false)
  */
 
 async function operator(proxies = [], targetPlatform, context) {
   const $ = $substore
-  const { isNode } = $.env
-  const internal = $arguments.internal
-  const mmdb_country_path = $arguments.mmdb_country_path
-  const mmdb_asn_path = $arguments.mmdb_asn_path
   const regex = $arguments.regex
+  const show_country = $arguments.show_country !== false // 默认 true
+  const show_city = $arguments.show_city !== false // 默认 true
+  const show_isp = $arguments.show_isp === true // 默认 false
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
   let format = $arguments.format || `{{api.country}} {{api.city}}`
-  let utils
-  if (internal) {
-    if (isNode) {
-      utils = new ProxyUtils.MMDB({ country: mmdb_country_path, asn: mmdb_asn_path })
-      $.info(
-        `[MMDB] GeoLite2 Country 数据库文件路径: ${mmdb_country_path || eval('process.env.SUB_STORE_MMDB_ASN_PATH')}`
-      )
-      $.info(`[MMDB] GeoLite2 ASN 数据库文件路径: ${mmdb_asn_path || eval('process.env.SUB_STORE_MMDB_COUNTRY_PATH')}`)
-    } else {
-      if (typeof $utils === 'undefined' || typeof $utils.geoip === 'undefined' || typeof $utils.ipaso === 'undefined') {
-        $.error(`目前仅支持 Surge/Loon (build >= 692) 等有 $utils.ipaso 和 $utils.geoip API 的 App`)
-        throw new Error('不支持使用内部方法获取 IP 信息, 请查看日志')
-      }
-      utils = $utils
-    }
-    format = $arguments.format || `{{api.country}} {{api.city}}`
-    valid = $arguments.valid || `"{{api.countryCode || api.aso}}".length > 0`
-  }
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
   const remove_failed = $arguments.remove_failed
   const entranceEnabled = $arguments.entrance
@@ -77,14 +60,19 @@ async function operator(proxies = [], targetPlatform, context) {
     { concurrency }
   )
 
-  // 新增：统计“国家 城市”出现次数，并重命名
+  // 新增：根据参数动态构建名称并重命名
   // 只处理有 _entrance 字段的节点
   const nameMap = {}
   proxies.forEach(proxy => {
     if (proxy._entrance) {
-      const country = proxy._entrance.country || ''
-      const city = proxy._entrance.city || ''
-      const key = `${country} ${city}`.trim()
+      const parts = []
+      if (show_country && proxy._entrance.country) {
+        parts.push(proxy._entrance.country)
+      }
+      if (show_city && proxy._entrance.city) {
+        parts.push(proxy._entrance.city)
+      }
+      const key = parts.join(' ').trim() || '未知'
       if (!nameMap[key]) nameMap[key] = []
       nameMap[key].push(proxy)
     }
@@ -93,7 +81,18 @@ async function operator(proxies = [], targetPlatform, context) {
     nameMap[key].forEach((proxy, idx) => {
       // 序号从 1 开始，补零
       const num = String(idx + 1).padStart(2, '0')
-      proxy.name = `${key} ${num}`.trim()
+      let finalName = key
+      if (nameMap[key].length > 1) {
+        finalName += ` ${num}`
+      }
+      // 添加 ISP 信息（如果启用）
+      if (show_isp && proxy._entrance) {
+        const isp = proxy._entrance.isp || proxy._entrance.org || proxy._entrance.as || proxy._entrance.aso || ''
+        if (isp) {
+          finalName += ` ${isp}`
+        }
+      }
+      proxy.name = finalName.trim()
     })
   })
 
@@ -119,7 +118,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
   async function check(proxy) {
     const id = cacheEnabled
-      ? `entrance:${url}:${format}:${regex}:${internal}:${JSON.stringify(
+      ? `entrance:${url}:${format}:${regex}:${JSON.stringify(
           Object.fromEntries(
             Object.entries(proxy).filter(([key]) => {
               const re = new RegExp(uniq_key)
@@ -148,54 +147,33 @@ async function operator(proxies = [], targetPlatform, context) {
       }
       const startedAt = Date.now()
       let api = {}
-      if (internal) {
-        api = {
-          countryCode: utils.geoip(proxy.server) || '',
-          aso: utils.ipaso(proxy.server) || '',
-        }
-        $.info(`[${proxy.name}] countryCode: ${api.countryCode}, aso: ${api.aso}`)
-        if ((api.countryCode || api.aso) && eval(formatter({ api, format: valid, regex }))) {
-          proxy.name = formatter({ proxy, api, format, regex })
-          proxy._entrance = api
-          if (cacheEnabled) {
-            $.info(`[${proxy.name}] 设置成功缓存`)
-            cache.set(id, { api })
-          }
-        } else {
-          if (cacheEnabled) {
-            $.info(`[${proxy.name}] 设置失败缓存`)
-            cache.set(id, {})
-          }
+      const res = await http({
+        method,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+        },
+        url: formatter({ proxy, format: url }),
+      })
+      api = String(lodash_get(res, 'body'))
+      try {
+        api = JSON.parse(api)
+      } catch (e) {}
+      const status = parseInt(res.status || res.statusCode || 200)
+      let latency = ''
+      latency = `${Date.now() - startedAt}`
+      $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
+      if (status == 200 && eval(formatter({ api, format: valid, regex }))) {
+        proxy.name = formatter({ proxy, api, format, regex })
+        proxy._entrance = api
+        if (cacheEnabled) {
+          $.info(`[${proxy.name}] 设置成功缓存`)
+          cache.set(id, { api })
         }
       } else {
-        const res = await http({
-          method,
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
-          },
-          url: formatter({ proxy, format: url }),
-        })
-        api = String(lodash_get(res, 'body'))
-        try {
-          api = JSON.parse(api)
-        } catch (e) {}
-        const status = parseInt(res.status || res.statusCode || 200)
-        let latency = ''
-        latency = `${Date.now() - startedAt}`
-        $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
-        if (status == 200 && eval(formatter({ api, format: valid, regex }))) {
-          proxy.name = formatter({ proxy, api, format, regex })
-          proxy._entrance = api
-          if (cacheEnabled) {
-            $.info(`[${proxy.name}] 设置成功缓存`)
-            cache.set(id, { api })
-          }
-        } else {
-          if (cacheEnabled) {
-            $.info(`[${proxy.name}] 设置失败缓存`)
-            cache.set(id, {})
-          }
+        if (cacheEnabled) {
+          $.info(`[${proxy.name}] 设置失败缓存`)
+          cache.set(id, {})
         }
       }
       $.log(`[${proxy.name}] api: ${JSON.stringify(api, null, 2)}`)
