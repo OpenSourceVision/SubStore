@@ -1,12 +1,34 @@
+去重
 
 ```
-https://gh-proxy.com/raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/main/entrance.js
+https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/Deduplication.js
+```
+```
+https://cdn.jsdelivr.net/gh/OpenSourceVision/SubStore@refs/heads/Test/Deduplication.js
+```
+```
+https://edgeone.gh-proxy.com/https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/Deduplication.js
+```
+
+入口
+```
+https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/http_meta_entrance.js
 ```
 
 ```
-https://gh-proxy.com/raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/main/http_meta_geo.js
+https://cdn.jsdelivr.net/gh/OpenSourceVision/SubStore@refs/heads/Test/http_meta_entrance.js
+```
+```
+https://edgeone.gh-proxy.com/https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/http_meta_entrance.js
 ```
 
+出口
 ```
-https://gh-proxy.com/raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/main/Deduplication.js
+https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/http_meta_egress.js
+```
+```
+https://cdn.jsdelivr.net/gh/OpenSourceVision/SubStore@refs/heads/Test/http_meta_egress.js
+```
+```
+https://edgeone.gh-proxy.com/https://raw.githubusercontent.com/OpenSourceVision/SubStore/refs/heads/Test/http_meta_egress.js
 ```
