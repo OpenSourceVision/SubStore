@@ -30,7 +30,7 @@
     {"tag": "🇺🇸 US", "type": "urltest", "outbounds": []},
     {"tag": "🇷🇺 RU", "type": "urltest", "outbounds": []},
     {"tag": "AI", "type": "selector", "outbounds": ["自动","🇹🇼 TW", "🇸🇬 SG", "🇺🇸 US"]},
-    {"tag": "YouTube", "type": "selector", "outbounds": ["自动","🇭🇰 HK", "🇹🇼 TW", "🇸🇬 SG", "🇺🇸 US", "手动"]},
+    {"tag": "YouTube", "type": "selector", "outbounds": ["🇷🇺 RU","自动","🇭🇰 HK", "🇹🇼 TW", "🇸🇬 SG", "🇺🇸 US", "手动"]},
     {"tag": "Google", "type": "selector", "outbounds": ["自动","🇭🇰 HK", "🇹🇼 TW", "🇸🇬 SG", "🇺🇸 US", "手动"]},
     {"tag": "Github", "type": "selector", "outbounds": ["自动","🇭🇰 HK", "🇹🇼 TW", "🇸🇬 SG", "🇺🇸 US", "手动"]},
     {"tag": "Telegram", "type": "selector", "outbounds": ["自动","🇸🇬 SG", "🇭🇰 HK", "🇹🇼 TW", "🇺🇸 US", "手动"]},
