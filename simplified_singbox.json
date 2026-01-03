@@ -21,9 +21,10 @@
     "reverse_mapping": true
   },
   "outbounds": [
-    {"tag": "选择", "type": "selector", "outbounds": ["自动", "手动"]},
+    {"tag": "选择", "type": "selector", "outbounds": ["自动", "手动", "美国"]},
+    {"tag": "美国", "type": "urltest", "outbounds": []},
     {"tag": "自动", "type": "urltest", "outbounds": []},
-    {"tag": "手动", "type": "selector", "outbounds": []},
+    {"tag": "手动", "type": "selector", "outbounds": []}, 
     {"tag": "直连", "type": "direct"}
   ],
   "route": {
