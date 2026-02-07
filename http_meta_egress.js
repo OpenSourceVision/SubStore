@@ -65,9 +65,9 @@ async function operator(proxies = [], targetPlatform, context) {
   const method = $arguments.method || 'get'
   const regex = $arguments.regex
   const show_country = $arguments.show_country !== false // 默认显示国家
-  const show_city = $arguments.show_city !== false // 默认显示城市
+  const show_city = $arguments.show_city === true // 默认隐藏城市
   const show_isp = $arguments.show_isp === true // 默认不显示ISP
-  let format = $arguments.format || '{{api.country}} {{api.city}}'
+  let format = $arguments.format || '{{api.country}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
 
   const internalProxies = []

@@ -42,10 +42,10 @@ async function operator(proxies = [], targetPlatform, context) {
   const $ = $substore
   const regex = $arguments.regex
   const show_country = $arguments.show_country !== false // 默认 true
-  const show_city = $arguments.show_city !== false // 默认 true
+  const show_city = $arguments.show_city === true // 默认 false
   const show_isp = $arguments.show_isp === true // 默认 false
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
-  let format = $arguments.format || `{{api.country}} {{api.city}}`
+  let format = $arguments.format || `{{api.country}}`
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
   const remove_failed = $arguments.remove_failed
   const entranceEnabled = $arguments.entrance
