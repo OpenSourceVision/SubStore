@@ -1,8 +1,9 @@
 /**
  * 节点地理位置检测脚本 (HTTP META 版)
- * 
- * 通过 HTTP META 代理核心检测节点的落地地理位置信息，支持自定义命名格式
- * 
+ *
+ * 通过 HTTP META 代理核心检测节点的落地地理位置信息
+ * 命名格式: 国家 序号 ISP，例如: 美国 01 Cloudflare
+ *
  * HTTP META 核心参数 (https://github.com/xream/http-meta)
  * - [http_meta_protocol] 协议，默认: http
  * - [http_meta_host] 服务地址，默认: 127.0.0.1
@@ -10,7 +11,7 @@
  * - [http_meta_authorization] Authorization 认证头，默认无
  * - [http_meta_start_delay] 初始启动延时(毫秒)，默认: 3000
  * - [http_meta_proxy_timeout] 每个节点超时时间(毫秒)，默认: 10000
- * 
+ *
  * 检测参数
  * - [retries] 重试次数，默认: 1
  * - [retry_delay] 重试延时(毫秒)，默认: 1000
@@ -19,31 +20,20 @@
  * - [method] 请求方法，默认: get
  * - [api] 地理位置检测 API，默认: http://ip-api.com/json?lang=zh-CN
  * - [regex] 正则表达式提取数据，格式: a:x;b:y
- * 
- * 命名格式参数
- * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
- * - [show_country] 在最终名称中显示国家，默认: true
-26→ * - [show_city] 在最终名称中显示城市，默认: false
-27→ * - [show_isp] 在最终名称中显示 ISP，默认: true
- * 
+ *
  * 输出控制参数
  * - [geo] 在节点上附加 _geo 字段，默认: false
  * - [incompatible] 在节点上附加 _incompatible 字段，默认: false
  * - [remove_incompatible] 移除不兼容的节点，默认: false
  * - [remove_failed] 移除检测失败的节点，默认: false
- * 
+ *
  * 缓存参数
  * - [cache] 启用缓存，默认: false
  * - [disable_failed_cache] 禁用失败缓存，默认: false
- * 
+ *
  * 缓存时长配置:
  * 设置持久化缓存 sub-store-csr-expiration-time 的值来自定义缓存时长
  * 默认: 172800000 (48小时)
- * 
- * 示例用法:
- * - 默认命名:  "美国 01"
- * - 包含 ISP:  "美国 01 Cloudflare" (show_isp=true)
- * - 仅国家: "美国 01" (show_city=false)
  */
 
 async function operator(proxies = [], targetPlatform, context) {
@@ -64,9 +54,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const http_meta_proxy_timeout = parseFloat($arguments.http_meta_proxy_timeout ?? 10000)
   const method = $arguments.method || 'get'
   const regex = $arguments.regex
-  const show_country = $arguments.show_country = true
-  const show_city = $arguments.show_city = false
-  const show_isp = $arguments.show_isp = true
+  const show_isp = true
   let format = $arguments.format || '{{api.country}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
 
@@ -80,7 +68,6 @@ async function operator(proxies = [], targetPlatform, context) {
             node[key] = proxy[key]
           }
         }
-        // $.info(JSON.stringify(node, null, 2))
         internalProxies.push({ ...node, _proxies_index: index })
       } else {
         proxies[index]._incompatible = true
@@ -89,7 +76,6 @@ async function operator(proxies = [], targetPlatform, context) {
       $.error(e)
     }
   })
-  // $.info(JSON.stringify(internalProxies, null, 2))
   $.info(`核心支持节点数: ${internalProxies.length}/${proxies.length}`)
   if (!internalProxies.length) return proxies
 
@@ -164,21 +150,13 @@ async function operator(proxies = [], targetPlatform, context) {
   $.info(`等待 ${http_meta_start_delay / 1000} 秒后开始检测`)
   await $.wait(http_meta_start_delay)
 
-  const concurrency = parseInt($arguments.concurrency || 10) // 一组并发数
+  const concurrency = parseInt($arguments.concurrency || 10)
   await executeAsyncTasks(
     internalProxies.map(proxy => () => check(proxy)),
     { concurrency }
   )
-  // const batches = []
-  // for (let i = 0; i < internalProxies.length; i += concurrency) {
-  //   const batch = internalProxies.slice(i, i + concurrency)
-  //   batches.push(batch)
-  // }
-  // for (const batch of batches) {
-  //   await Promise.all(batch.map(check))
-  // }
 
-  // stop http meta
+  // 关闭 HTTP META
   try {
     const res = await http({
       method: 'post',
@@ -219,13 +197,27 @@ async function operator(proxies = [], targetPlatform, context) {
     })
   }
 
+  // 统一重命名节点（格式：国家 序号 ISP）
+  const nameIndexMap = {}
+  proxies.forEach(p => {
+    if (p._geo && (p._geo.country || p._geo.countryCode)) {
+      const country = p._geo.country || p._geo.countryCode || ''
+      const key = country.trim() || '未知'
+      if (!nameIndexMap[key]) nameIndexMap[key] = 1
+      const num = String(nameIndexMap[key]++).padStart(2, '0')
+      let finalName = `${key} ${num}`
+      if (show_isp) {
+        const isp = p._geo.isp || p._geo.org || p._geo.as || p._geo.aso || ''
+        if (isp) finalName += ` ${isp}`
+      }
+      p.name = finalName.trim()
+    }
+  })
+
   return proxies
 
   async function check(proxy) {
-    // $.info(`[${proxy.name}] 检测`)
-    // $.info(`检测 ${JSON.stringify(proxy, null, 2)}`)
     const id = cacheEnabled ? getCacheId({ proxy, url, format, regex }) : undefined
-    // $.info(`检测 ${id}`)
     try {
       const cached = cache.get(id)
       if (cacheEnabled && cached) {
@@ -249,7 +241,6 @@ async function operator(proxies = [], targetPlatform, context) {
           }
         }
       }
-      // $.info(JSON.stringify(proxy, null, 2))
       const index = internalProxies.indexOf(proxy)
       const startedAt = Date.now()
 
@@ -264,8 +255,7 @@ async function operator(proxies = [], targetPlatform, context) {
       })
       let api = String(lodash_get(res, 'body'))
       const status = parseInt(res.status || res.statusCode || 200)
-      let latency = ''
-      latency = `${Date.now() - startedAt}`
+      const latency = `${Date.now() - startedAt}`
       $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
       try {
         api = JSON.parse(api)
@@ -294,7 +284,7 @@ async function operator(proxies = [], targetPlatform, context) {
       }
     }
   }
-  // 请求
+
   async function http(opt = {}) {
     const METHOD = opt.method || $arguments.method || 'get'
     const TIMEOUT = parseFloat(opt.timeout || $arguments.timeout || 5000)
@@ -306,11 +296,9 @@ async function operator(proxies = [], targetPlatform, context) {
       try {
         return await $.http[METHOD]({ ...opt, timeout: TIMEOUT })
       } catch (e) {
-        // $.error(e)
         if (count < RETRIES) {
           count++
           const delay = RETRY_DELAY * count
-          // $.info(`第 ${count} 次请求失败: ${e.message || e}, 等待 ${delay / 1000}s 后重试`)
           await $.wait(delay)
           return await fn()
         } else {
@@ -320,6 +308,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
     return await fn()
   }
+
   function lodash_get(source, path, defaultValue = undefined) {
     const paths = path.replace(/\[(\d+)\]/g, '.$1').split('.')
     let result = source
@@ -331,6 +320,7 @@ async function operator(proxies = [], targetPlatform, context) {
     }
     return result
   }
+
   function formatter({ proxy = {}, api = {}, format = '', regex = '' }) {
     if (regex) {
       const regexPairs = regex.split(/\s*;\s*/g).filter(Boolean)
@@ -351,17 +341,18 @@ async function operator(proxies = [], targetPlatform, context) {
     let f = format.replace(/\{\{(.*?)\}\}/g, '${$1}')
     return eval(`\`${f}\``)
   }
+
   function getCacheId({ proxy = {}, url, format, regex }) {
     return `http-meta:geo:${url}:${format}:${regex}:${JSON.stringify(
       Object.fromEntries(Object.entries(proxy).filter(([key]) => !/^(collectionName|subName|id|_.*)$/i.test(key)))
     )}`
   }
+
   function executeAsyncTasks(tasks, { wrap, result, concurrency = 1 } = {}) {
     return new Promise(async (resolve, reject) => {
       try {
         let running = 0
         const results = []
-
         let index = 0
 
         function executeNextTask() {
@@ -398,33 +389,4 @@ async function operator(proxies = [], targetPlatform, context) {
       }
     })
   }
-
-  // 检测完成后，统一重命名节点
-  // 格式: 国家 序号 ISP
-  const nameIndexMap = {};
-
-  proxies.forEach((p, idx) => {
-    // 只处理有 _geo 字段的节点
-    if (p._geo && (p._geo.country || p._geo.countryCode)) {
-      // 获取国家信息作为分组键
-      const country = p._geo.country || p._geo.countryCode || '未知';
-      
-      if (!nameIndexMap[country]) nameIndexMap[country] = 1;
-      const index = nameIndexMap[country]++;
-      const num = index.toString().padStart(2, '0');
-      
-      // 构建最终名称：国家 序号 ISP
-      let finalName = `${country} ${num}`;
-      
-      // 添加ISP信息
-      const isp = p._geo.isp || p._geo.org || p._geo.as || p._geo.aso || '';
-      if (isp) {
-        finalName += ` ${isp}`;
-      }
-      
-      p.name = finalName.trim();
-    }
-  });
-
-  return proxies
 }
