@@ -23,8 +23,8 @@
  * 命名格式参数
  * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
  * - [show_country] 在最终名称中显示国家，默认: true
- * - [show_city] 在最终名称中显示城市，默认: true
- * - [show_isp] 在最终名称中显示 ISP，默认: false
+26→ * - [show_city] 在最终名称中显示城市，默认: false
+27→ * - [show_isp] 在最终名称中显示 ISP，默认: true
  * 
  * 输出控制参数
  * - [geo] 在节点上附加 _geo 字段，默认: false
@@ -66,7 +66,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const regex = $arguments.regex
   const show_country = $arguments.show_country !== false // 默认显示国家
   const show_city = $arguments.show_city === true // 默认隐藏城市
-  const show_isp = $arguments.show_isp === true // 默认不显示ISP
+  const show_isp = $arguments.show_isp !== false // 默认显示ISP
   let format = $arguments.format || '{{api.country}}'
   let url = $arguments.api || 'http://ip-api.com/json?lang=zh-CN'
 
