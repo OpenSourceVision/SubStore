@@ -16,8 +16,8 @@
  * 命名格式参数
  * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
  * - [show_country] 在最终名称中显示国家，默认: true
- * - [show_city] 在最终名称中显示城市，默认: true
- * - [show_isp] 在最终名称中显示 ISP，默认: false
+ * - [show_city] 在最终名称中显示城市，默认: false
+ * - [show_isp] 在最终名称中显示 ISP，默认: true
  * 
  * 输出控制参数
  * - [entrance] 在节点上附加 _entrance 字段，默认: false
@@ -43,7 +43,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const regex = $arguments.regex
   const show_country = $arguments.show_country !== false // 默认 true
   const show_city = $arguments.show_city === true // 默认 false
-  const show_isp = $arguments.show_isp === true // 默认 false
+  const show_isp = $arguments.show_isp !== false // 默认 true
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
   let format = $arguments.format || `{{api.country}}`
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
