@@ -1,208 +1,278 @@
 /**
- * 节点入口地理位置检测脚本 - 固定命名格式：国家 序号 ISP
+ * 节点入口地理位置检测脚本
  * 
- * 示例输出：
- *   美国 01 Cloudflare
- *   美国 02 Cloudflare
- *   日本 01 SoftBank
- *   香港 01 香港宽频
- *   台湾 01 中华电信
- *   德国 01 Hetzner
+ * 通过检测节点服务器的地理位置信息，支持自定义命名格式
+ * 
+ * 检测参数
+ * - [retries] 重试次数，默认: 1
+ * - [retry_delay] 重试延时(毫秒)，默认: 1000
+ * - [concurrency] 并发数，默认: 10
+ * - [timeout] 请求超时(毫秒)，默认: 5000
+ * - [method] 请求方法，默认: get
+ * - [api] 入口地理位置检测 API，默认: http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
+ * - [regex] 正则表达式提取数据，格式: a:x;b:y
+ * - [valid] API 响应验证条件，默认: ProxyUtils.isIP('{{api.ip || api.query}}')
+ * 
+ * 命名格式参数
+ * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
+ * - [show_country] 在最终名称中显示国家，默认: true
+ * - [show_city] 在最终名称中显示城市，默认: false
+20→ * - [show_isp] 在最终名称中显示 ISP，默认: false
+ * 
+ * 输出控制参数
+ * - [entrance] 在节点上附加 _entrance 字段，默认: false
+ * - [remove_failed] 移除检测失败的节点，默认: false
+ * 
+ * 缓存参数
+ * - [cache] 启用缓存，默认: false
+ * - [disable_failed_cache] 禁用失败缓存，默认: false
+ * - [uniq_key] 缓存唯一键字段匹配正则，默认: ^server$
+ * 
+ * 缓存时长配置:
+ * 设置持久化缓存 sub-store-csr-expiration-time 的值来自定义缓存时长
+ * 默认: 172800000 (48小时)
+ * 
+ * 示例用法:
+ * - 默认命名: "美国 纽约 01"
+ * - 包含 ISP: "美国 纽约 01 Cloudflare" (show_isp=true)
+ * - 仅国家: "美国 01" (show_city=false)
  */
 
 async function operator(proxies = [], targetPlatform, context) {
   const $ = $substore
-  
-  // 可通过参数控制的主要开关（默认值）
-  const cacheEnabled       = !!$arguments.cache
-  const remove_failed      = !!$arguments.remove_failed
-  const entranceEnabled    = $arguments.entrance !== false          // 默认保留 _entrance
+  const regex = $arguments.regex
+  const show_country = $arguments.show_country = true // 默认 true
+  const show_city = $arguments.show_city = false // 默认 
+  const show_isp = $arguments.show_isp = true //
+  let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
+  let format = $arguments.format || `{{api.country}}`
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
-  const concurrency        = parseInt($arguments.concurrency || 10)
-  const method             = $arguments.method || 'get'
-  const apiUrlTemplate     = $arguments.api || 'http://ip-api.com/json/{{proxy.server}}?lang=zh-CN'
-  const uniq_key           = $arguments.uniq_key || '^server$'
-  const cache              = scriptResourceCache
-
-  // 并发执行所有节点的 IP-API 查询
+  const remove_failed = $arguments.remove_failed
+  const entranceEnabled = $arguments.entrance
+  const cacheEnabled = $arguments.cache
+  const uniq_key = $arguments.uniq_key || '^server$'
+  const cache = scriptResourceCache
+  const method = $arguments.method || 'get'
+  const url = $arguments.api || `http://ip-api.com/json/{{proxy.server}}?lang=zh-CN`
+  const concurrency = parseInt($arguments.concurrency || 10)
   await executeAsyncTasks(
     proxies.map(proxy => () => check(proxy)),
     { concurrency }
   )
 
-  // ──────────────── 重命名逻辑 ────────────────
-  // 按国家分组
-  const countryGroups = {}
+  // 新增：根据参数动态构建名称并重命名
+  // 格式: 国家 序号 ISP
+  const nameIndexMap = {};
   proxies.forEach(proxy => {
-    if (proxy._entrance?.country) {
-      const country = proxy._entrance.country
-      if (!countryGroups[country]) countryGroups[country] = []
-      countryGroups[country].push(proxy)
+    if (proxy._entrance && (proxy._entrance.country || proxy._entrance.countryCode)) {
+      // 获取国家信息作为分组键
+      const country = proxy._entrance.country || proxy._entrance.countryCode || '未知';
+      
+      if (!nameIndexMap[country]) nameIndexMap[country] = 1;
+      const index = nameIndexMap[country]++;
+      const num = String(index).padStart(2, '0');
+      
+      // 构建最终名称：国家 序号 ISP
+      let finalName = `${country} ${num}`;
+      
+      // 添加ISP信息
+      const isp = proxy._entrance.isp || proxy._entrance.org || proxy._entrance.as || proxy._entrance.aso || '';
+      if (isp) {
+        finalName += ` ${isp}`;
+      }
+      
+      proxy.name = finalName.trim();
     }
   })
 
-  // 对每个国家内的节点进行编号 + ISP 拼接
-  Object.keys(countryGroups).forEach(country => {
-    const group = countryGroups[country]
-    group.forEach((proxy, idx) => {
-      let parts = [country]
-
-      // 同一个国家有多个节点才加序号
-      if (group.length > 1) {
-        const num = String(idx + 1).padStart(2, '0')
-        parts.push(num)
-      }
-
-      // ISP 信息（优先级顺序）
-      const isp = (
-        proxy._entrance.isp ||
-        proxy._entrance.org ||
-        proxy._entrance.as  ||
-        proxy._entrance.aso ||
-        ''
-      ).trim()
-
-      if (isp) {
-        parts.push(isp)
-      }
-
-      proxy.name = parts.join(' ').trim()
-    })
-  })
-
-  // ──────────────── 后续处理 ────────────────
-  // 1. 是否删除检测失败的节点
   if (remove_failed) {
-    proxies = proxies.filter(p => !!p._entrance?.country)
+    proxies = proxies.filter(p => {
+      if (remove_failed && !p._entrance) {
+        return false
+      }
+      return true
+    })
   }
 
-  // 2. 是否保留 _entrance 附加字段
   if (!entranceEnabled) {
-    proxies.forEach(p => {
-      if (p._entrance) delete p._entrance
+    proxies = proxies.map(p => {
+      if (!entranceEnabled) {
+        delete p._entrance
+      }
+      return p
     })
   }
 
   return proxies
 
-  // ──────────────── 检测单个节点 ────────────────
   async function check(proxy) {
-    if (!proxy.server) return
-
-    // 缓存 key
-    let cacheId
-    if (cacheEnabled) {
-      const uniqPart = Object.fromEntries(
-        Object.entries(proxy).filter(([k]) => new RegExp(uniq_key).test(k))
-      )
-      cacheId = `entrance:${apiUrlTemplate}:${JSON.stringify(uniqPart)}`
-    }
-
-    // 尝试读取缓存
-    if (cacheEnabled) {
-      const cached = cache.get(cacheId)
-      if (cached) {
-        if (cached.api?.country) {
+    const id = cacheEnabled
+      ? `entrance:${url}:${format}:${regex}:${JSON.stringify(
+          Object.fromEntries(
+            Object.entries(proxy).filter(([key]) => {
+              const re = new RegExp(uniq_key)
+              return re.test(key)
+            })
+          )
+        )}`
+      : undefined
+    try {
+      const cached = cache.get(id)
+      if (cacheEnabled && cached) {
+        if (cached.api) {
           $.info(`[${proxy.name}] 使用成功缓存`)
+          $.log(`[${proxy.name}] api: ${JSON.stringify(cached.api, null, 2)}`)
+          proxy.name = formatter({ proxy, api: cached.api, format, regex })
           proxy._entrance = cached.api
           return
+        } else {
+          if (disableFailedCache) {
+            $.info(`[${proxy.name}] 不使用失败缓存`)
+          } else {
+            $.info(`[${proxy.name}] 使用失败缓存`)
+            return
+          }
         }
-        if (!disableFailedCache) {
-          $.info(`[${proxy.name}] 使用失败缓存，跳过本次检测`)
-          return
-        }
-        // 否则继续检测（disableFailedCache = true）
       }
-    }
-
-    try {
-      const started = Date.now()
-
+      const startedAt = Date.now()
+      let api = {}
       const res = await http({
         method,
-        url: apiUrlTemplate.replace(/{{proxy\.server}}/g, proxy.server),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-        }
+          'User-Agent':
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Mobile/15E148 Safari/604.1',
+        },
+        url: formatter({ proxy, format: url }),
       })
-
-      let apiData = {}
+      api = String(lodash_get(res, 'body'))
       try {
-        apiData = JSON.parse(String(res.body || '{}'))
-      } catch {}
-
-      const status = Number(res.status || res.statusCode || 0)
-      const latency = Date.now() - started
-
-      $.info(`[${proxy.name}] status:${status}  latency:${latency}ms`)
-
-      // 简单有效性判断
-      if (status === 200 && apiData.country && ProxyUtils?.isIP?.(apiData.query || apiData.ip)) {
-        proxy._entrance = apiData
-
+        api = JSON.parse(api)
+      } catch (e) {}
+      const status = parseInt(res.status || res.statusCode || 200)
+      let latency = ''
+      latency = `${Date.now() - startedAt}`
+      $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
+      if (status == 200 && eval(formatter({ api, format: valid, regex }))) {
+        proxy.name = formatter({ proxy, api, format, regex })
+        proxy._entrance = api
         if (cacheEnabled) {
-          cache.set(cacheId, { api: apiData })
-          $.info(`[${proxy.name}] 缓存成功`)
+          $.info(`[${proxy.name}] 设置成功缓存`)
+          cache.set(id, { api })
         }
       } else {
         if (cacheEnabled) {
-          cache.set(cacheId, {})  // 空对象代表失败
-          $.info(`[${proxy.name}] 缓存失败标记`)
+          $.info(`[${proxy.name}] 设置失败缓存`)
+          cache.set(id, {})
         }
       }
-
-      $.log(`[${proxy.name}] → ${JSON.stringify(apiData, null, 2)}`)
+      $.log(`[${proxy.name}] api: ${JSON.stringify(api, null, 2)}`)
     } catch (e) {
-      $.error(`[${proxy.name}] 检测异常 → ${e.message || e}`)
+      $.error(`[${proxy.name}] ${e.message ?? e}`)
       if (cacheEnabled) {
-        cache.set(cacheId, {})
+        $.info(`[${proxy.name}] 设置失败缓存`)
+        cache.set(id, {})
       }
     }
   }
 
-  // ──────────────── http 请求（带重试） ────────────────
-  async function http(opt) {
-    const METHOD = (opt.method || 'get').toLowerCase()
-    const TIMEOUT = parseInt(opt.timeout || $arguments.timeout || 5000)
-    const RETRIES = parseInt(opt.retries ?? $arguments.retries ?? 2)
-    const RETRY_DELAY = parseInt(opt.retry_delay ?? $arguments.retry_delay ?? 800)
+  async function http(opt = {}) {
+    const METHOD = opt.method || 'get'
+    const TIMEOUT = parseFloat(opt.timeout || $arguments.timeout || 5000)
+    const RETRIES = parseFloat(opt.retries ?? $arguments.retries ?? 1)
+    const RETRY_DELAY = parseFloat(opt.retry_delay ?? $arguments.retry_delay ?? 1000)
 
-    let attempt = 0
-    while (true) {
+    let count = 0
+    const fn = async () => {
       try {
-        return await $.http[METHOD]({
-          ...opt,
-          timeout: TIMEOUT
-        })
-      } catch (err) {
-        attempt++
-        if (attempt > RETRIES) throw err
-        await $.wait(RETRY_DELAY * attempt)
+        return await $.http[METHOD]({ ...opt, timeout: TIMEOUT })
+      } catch (e) {
+        if (count < RETRIES) {
+          count++
+          const delay = RETRY_DELAY * count
+          await $.wait(delay)
+          return await fn()
+        } else {
+          throw e
+        }
       }
     }
+    return await fn()
   }
 
-  // ──────────────── 并发控制工具 ────────────────
-  function executeAsyncTasks(tasks, { concurrency = 10 } = {}) {
-    return new Promise((resolve) => {
-      let running = 0
-      let index = 0
-
-      function next() {
-        while (index < tasks.length && running < concurrency) {
-          const i = index++
-          running++
-          tasks[i]()
-            .catch(() => {})   // 错误已在内部处理
-            .finally(() => {
-              running--
-              next()
-            })
-        }
-        if (running === 0) resolve()
+  function lodash_get(source, path, defaultValue = undefined) {
+    const paths = path.replace(/\[(\d+)\]/g, '.$1').split('.')
+    let result = source
+    for (const p of paths) {
+      result = Object(result)[p]
+      if (result === undefined) {
+        return defaultValue
       }
+    }
+    return result
+  }
 
-      next()
+  function formatter({ proxy = {}, api = {}, format = '', regex = '' }) {
+    if (regex) {
+      const regexPairs = regex.split(/\s*;\s*/g).filter(Boolean)
+      const extracted = {}
+      for (const pair of regexPairs) {
+        const [key, pattern] = pair.split(/\s*:\s*/g).map(s => s.trim())
+        if (key && pattern) {
+          try {
+            const reg = new RegExp(pattern)
+            extracted[key] = (typeof api === 'string' ? api : JSON.stringify(api)).match(reg)?.[1]?.trim()
+          } catch (e) {
+            $.error(`正则表达式解析错误: ${e.message}`)
+          }
+        }
+      }
+      api = { ...api, ...extracted }
+    }
+
+    let f = format.replace(/\{\{(.*?)\}\}/g, '${$1}')
+    return eval(`\`${f}\``)
+  }
+
+  function executeAsyncTasks(tasks, { wrap, result, concurrency = 1 } = {}) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        let running = 0
+        const results = []
+
+        let index = 0
+
+        function executeNextTask() {
+          while (index < tasks.length && running < concurrency) {
+            const taskIndex = index++
+            const currentTask = tasks[taskIndex]
+            running++
+
+            currentTask()
+              .then(data => {
+                if (result) {
+                  results[taskIndex] = wrap ? { data } : data
+                }
+              })
+              .catch(error => {
+                if (result) {
+                  results[taskIndex] = wrap ? { error } : error
+                }
+              })
+              .finally(() => {
+                running--
+                executeNextTask()
+              })
+          }
+
+          if (running === 0) {
+            return resolve(result ? results : undefined)
+          }
+        }
+
+        await executeNextTask()
+      } catch (e) {
+        reject(e)
+      }
     })
   }
 }
