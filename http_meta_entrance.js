@@ -1,8 +1,9 @@
 /**
  * 节点入口地理位置检测脚本
- * 
- * 通过检测节点服务器的地理位置信息，支持自定义命名格式
- * 
+ *
+ * 通过检测节点服务器的地理位置信息进行命名
+ * 命名格式: 国家 序号 ISP，例如: 美国 01 Cloudflare
+ *
  * 检测参数
  * - [retries] 重试次数，默认: 1
  * - [retry_delay] 重试延时(毫秒)，默认: 1000
@@ -12,38 +13,25 @@
  * - [api] 入口地理位置检测 API，默认: http://ip-api.com/json/{{proxy.server}}?lang=zh-CN
  * - [regex] 正则表达式提取数据，格式: a:x;b:y
  * - [valid] API 响应验证条件，默认: ProxyUtils.isIP('{{api.ip || api.query}}')
- * 
- * 命名格式参数
- * - [format] 自定义格式模板，默认: {{api.country}} {{api.city}}
- * - [show_country] 在最终名称中显示国家，默认: true
- * - [show_city] 在最终名称中显示城市，默认: false
-20→ * - [show_isp] 在最终名称中显示 ISP，默认: false
- * 
+ *
  * 输出控制参数
  * - [entrance] 在节点上附加 _entrance 字段，默认: false
  * - [remove_failed] 移除检测失败的节点，默认: false
- * 
+ *
  * 缓存参数
  * - [cache] 启用缓存，默认: false
  * - [disable_failed_cache] 禁用失败缓存，默认: false
  * - [uniq_key] 缓存唯一键字段匹配正则，默认: ^server$
- * 
+ *
  * 缓存时长配置:
  * 设置持久化缓存 sub-store-csr-expiration-time 的值来自定义缓存时长
  * 默认: 172800000 (48小时)
- * 
- * 示例用法:
- * - 默认命名: "美国 纽约 01"
- * - 包含 ISP: "美国 纽约 01 Cloudflare" (show_isp=true)
- * - 仅国家: "美国 01" (show_city=false)
  */
 
 async function operator(proxies = [], targetPlatform, context) {
   const $ = $substore
   const regex = $arguments.regex
-  const show_country = $arguments.show_country = true // 默认 true
-  const show_city = $arguments.show_city = false // 默认 
-  const show_isp = $arguments.show_isp = true //
+  const show_isp = true
   let valid = $arguments.valid || `ProxyUtils.isIP('{{api.ip || api.query}}')`
   let format = $arguments.format || `{{api.country}}`
   const disableFailedCache = $arguments.disable_failed_cache || $arguments.ignore_failed_error
@@ -60,29 +48,25 @@ async function operator(proxies = [], targetPlatform, context) {
     { concurrency }
   )
 
-  // 新增：根据参数动态构建名称并重命名
-  // 格式: 国家 序号 ISP
-  const nameIndexMap = {};
+  // 统一重命名节点（格式：国家 序号 ISP）
+  const nameMap = {}
   proxies.forEach(proxy => {
-    if (proxy._entrance && (proxy._entrance.country || proxy._entrance.countryCode)) {
-      // 获取国家信息作为分组键
-      const country = proxy._entrance.country || proxy._entrance.countryCode || '未知';
-      
-      if (!nameIndexMap[country]) nameIndexMap[country] = 1;
-      const index = nameIndexMap[country]++;
-      const num = String(index).padStart(2, '0');
-      
-      // 构建最终名称：国家 序号 ISP
-      let finalName = `${country} ${num}`;
-      
-      // 添加ISP信息
-      const isp = proxy._entrance.isp || proxy._entrance.org || proxy._entrance.as || proxy._entrance.aso || '';
-      if (isp) {
-        finalName += ` ${isp}`;
-      }
-      
-      proxy.name = finalName.trim();
+    if (proxy._entrance) {
+      const key = proxy._entrance.country?.trim() || '未知'
+      if (!nameMap[key]) nameMap[key] = []
+      nameMap[key].push(proxy)
     }
+  })
+  Object.keys(nameMap).forEach(key => {
+    nameMap[key].forEach((proxy, idx) => {
+      const num = String(idx + 1).padStart(2, '0')
+      let finalName = `${key} ${num}`
+      if (show_isp && proxy._entrance) {
+        const isp = proxy._entrance.isp || proxy._entrance.org || proxy._entrance.as || proxy._entrance.aso || ''
+        if (isp) finalName += ` ${isp}`
+      }
+      proxy.name = finalName.trim()
+    })
   })
 
   if (remove_failed) {
@@ -96,9 +80,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
   if (!entranceEnabled) {
     proxies = proxies.map(p => {
-      if (!entranceEnabled) {
-        delete p._entrance
-      }
+      delete p._entrance
       return p
     })
   }
@@ -149,8 +131,7 @@ async function operator(proxies = [], targetPlatform, context) {
         api = JSON.parse(api)
       } catch (e) {}
       const status = parseInt(res.status || res.statusCode || 200)
-      let latency = ''
-      latency = `${Date.now() - startedAt}`
+      const latency = `${Date.now() - startedAt}`
       $.info(`[${proxy.name}] status: ${status}, latency: ${latency}`)
       if (status == 200 && eval(formatter({ api, format: valid, regex }))) {
         proxy.name = formatter({ proxy, api, format, regex })
@@ -238,7 +219,6 @@ async function operator(proxies = [], targetPlatform, context) {
       try {
         let running = 0
         const results = []
-
         let index = 0
 
         function executeNextTask() {
