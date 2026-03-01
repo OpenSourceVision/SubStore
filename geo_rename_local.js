@@ -2,7 +2,7 @@
  * 节点落地地理位置重命名脚本（本地数据库版）
  *
  * 通过 mihomo 内核将请求从节点自身发出，同时完成:
- *   1. 延迟测试 — 不通的节点直接舍弃
+ *   1. 延迟测试 — 单进程 + mihomo API 并发，不通的节点直接舍弃
  *   2. 获取真实出口 IP — 通过 checkip.amazonaws.com
  *   3. 本地 mmdb 查询 — 无网络请求，无限速，毫秒级
  * 最终按"国家 序号 ISP"格式重命名。
@@ -20,9 +20,11 @@
  * 参数说明:
  * - [mihomo_path]   mihomo 二进制绝对路径（可选，自动搜索默认位置）
  * - [mmdb_dir]      mmdb 目录绝对路径（可选，默认 <Sub-Store目录>/mmdb）
+ * - [api_port]      External Controller 端口，默认: 9090
  * - [test_url]      延迟测试 URL，默认: http://www.gstatic.com/generate_204
  * - [test_timeout]  延迟测试超时(毫秒)，默认: 5000
- * - [concurrency]   并发节点数，默认: 5
+ * - [concurrency]      地理查询并发数，默认: 5
+ * - [delay_concurrency] 延迟测试并发数，默认: 10
  * - [ip_timeout]    IP 查询超时(毫秒)，默认: 10000
  * - [start_port]    本地代理起始端口，默认: 14000
  * - [cache]         启用缓存，默认: true
@@ -36,12 +38,15 @@ async function operator(proxies = [], targetPlatform, context) {
   const net              = require('net')
   const path             = require('path')
   const os               = require('os')
+  const http             = require('http')
 
-  const TEST_URL      = $arguments.test_url || 'http://www.gstatic.com/generate_204'
-  const TEST_TIMEOUT  = parseInt($arguments.test_timeout || 5000)
-  const IP_TIMEOUT    = parseInt($arguments.ip_timeout || 10000)
-  const CONCURRENCY   = parseInt($arguments.concurrency || 5)
-  const START_PORT    = parseInt($arguments.start_port || 14000)
+  const TEST_URL      = $arguments.test_url     || 'http://www.gstatic.com/generate_204'
+  const TEST_TIMEOUT  = parseInt($arguments.test_timeout  || 5000)
+  const IP_TIMEOUT    = parseInt($arguments.ip_timeout    || 10000)
+  const CONCURRENCY         = parseInt($arguments.concurrency        || 5)
+  const DELAY_CONCURRENCY   = parseInt($arguments.delay_concurrency   || 10)
+  const START_PORT    = parseInt($arguments.start_port    || 14000)
+  const API_PORT      = parseInt($arguments.api_port      || 9090)
   const CACHE_ENABLED = $arguments.cache !== false && $arguments.cache !== 'false'
 
   const IS_WINDOWS = os.platform() === 'win32'
@@ -90,6 +95,7 @@ async function operator(proxies = [], targetPlatform, context) {
     try {
       const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0]
       if (node) {
+        node.name = `proxy_${index}`
         converted.push({ index, proxy, node })
       } else {
         $.error(`[geo] [${proxy.name}] 无法转换为 mihomo 格式，跳过`)
@@ -100,22 +106,34 @@ async function operator(proxies = [], targetPlatform, context) {
   })
 
   $.info(`[geo] 可检测节点: ${converted.length}/${proxies.length}`)
-
-  // 所有节点默认标记为待舍弃
   proxies.forEach(p => { p._remove = true })
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 阶段一：单进程并发测延迟（与在线版相同）
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const aliveItems = await phaseLatency(converted)
+
+  const removedCount = converted.length - aliveItems.length
+  if (removedCount > 0) $.info(`[geo] 舍弃不通节点: ${removedCount} 个`)
+  $.info(`[geo] 存活节点: ${aliveItems.length} 个，进入地理查询阶段`)
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 阶段二：对存活节点并发查地理（独立 mihomo 实例 + 本地 mmdb）
+  // ══════════════════════════════════════════════════════════════════════════════
+
   await runConcurrent(
-    converted.map((item, i) => () => detectProxy(item, START_PORT + i % 900)),
+    aliveItems.map((item, i) => () => phaseGeo(item, START_PORT + i % 900)),
     CONCURRENCY
   )
 
-  // 过滤不通节点
+  // ─── 过滤 + 按国家编号重命名 ───────────────────────────────────────────────────
+
   const before = proxies.length
   proxies = proxies.filter(p => !p._remove)
   const removed = before - proxies.length
-  if (removed > 0) $.info(`[geo] 舍弃不通节点: ${removed} 个`)
+  if (removed > 0) $.info(`[geo] 舍弃不通节点（最终）: ${removed} 个`)
 
-  // 按国家分组编号，生成最终名称
   const countryIndex = {}
   for (const proxy of proxies) {
     const country = proxy._geo?.country || '未知'
@@ -130,21 +148,130 @@ async function operator(proxies = [], targetPlatform, context) {
   $.info(`[geo] 完成，剩余节点: ${proxies.length}`)
   return proxies
 
-  // ─── 检测单个节点 ─────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 阶段一实现：单进程 + mihomo API 并发测延迟
+  // ══════════════════════════════════════════════════════════════════════════════
 
-  async function detectProxy({ index, proxy, node }, port) {
-    // 缓存 key：同一服务器配置共用缓存（地理信息不变，但延迟每次都实时检测）
+  async function phaseLatency(items) {
+    if (items.length === 0) return []
+
+    const tmpDir     = await fs.mkdtemp(path.join(os.tmpdir(), 'geo-lat-'))
+    const configPath = path.join(tmpDir, 'config.yaml')
+
+    // 所有节点写入同一配置，开启 External Controller
+    const proxyLines = items.map(i => '  - ' + nodeToYaml(i.node)).join('\n')
+    const proxyNames = items.map(i => `      - "${i.node.name}"`).join('\n')
+    const config = [
+      `mixed-port: ${START_PORT}`,
+      'allow-lan: false',
+      'log-level: warning',
+      'ipv6: false',
+      `external-controller: 127.0.0.1:${API_PORT}`,
+      "external-controller-cors-allow-origins: ['*']",
+      '',
+      'proxies:',
+      proxyLines,
+      '',
+      'proxy-groups:',
+      '  - name: PROXY',
+      '    type: select',
+      '    proxies:',
+      proxyNames,
+      '',
+      'rules:',
+      '  - MATCH,PROXY',
+    ].join('\n')
+    await fs.writeFile(configPath, config, 'utf8')
+
+    let proc = null
+    try {
+      proc = spawnMihomo(tmpDir, configPath)
+
+      const ready = await waitForPort(API_PORT, 12000)
+      if (!ready) {
+        $.error(`[geo] [阶段一] mihomo API 端口 ${API_PORT} 未就绪，跳过延迟测试`)
+        return []
+      }
+      $.info(`[geo] [阶段一] mihomo 就绪，并发测延迟（${items.length} 个节点，每批 ${DELAY_CONCURRENCY} 个）...`)
+
+      // 分批并发调用 /proxies/{name}/delay，避免同时打开过多连接
+      const results = new Array(items.length).fill(null)
+      await runConcurrent(
+        items.map((item, i) => async () => {
+          results[i] = await queryDelay(item.node.name).catch(e => Promise.reject(e))
+        }),
+        DELAY_CONCURRENCY
+      )
+
+      const alive = []
+      results.forEach((r, i) => {
+        const item = items[i]
+        if (typeof r === 'number' && r > 0) {
+          $.info(`[geo] [${item.proxy.name}] ✓ 延迟: ${r}ms`)
+          item.proxy._remove = false
+          alive.push(item)
+        } else {
+          $.info(`[geo] [${item.proxy.name}] ✗ 超时或节点不通，已舍弃`)
+        }
+      })
+      $.info(`[geo] [阶段一] 完成，存活 ${alive.length}/${items.length}`)
+      return alive
+
+    } finally {
+      killProc(proc)
+      try { await fs.rm(tmpDir, { recursive: true, force: true }) } catch (_) {}
+    }
+  }
+
+  // ─── 调用 mihomo API 测单节点延迟 ─────────────────────────────────────────────
+
+  function queryDelay(nodeName) {
+    const encodedName = encodeURIComponent(nodeName)
+    const encodedUrl  = encodeURIComponent(TEST_URL)
+    const apiPath     = `/proxies/${encodedName}/delay?url=${encodedUrl}&timeout=${TEST_TIMEOUT}`
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { req.destroy(); resolve(null) }, TEST_TIMEOUT + 2000)
+      const req = http.request(
+        { host: '127.0.0.1', port: API_PORT, method: 'GET', path: apiPath },
+        res => {
+          let raw = ''
+          res.on('data', d => (raw += d))
+          res.on('end', () => {
+            clearTimeout(timer)
+            try {
+              const json = JSON.parse(raw)
+              resolve(typeof json.delay === 'number' && json.delay > 0 ? json.delay : null)
+            } catch (_) { resolve(null) }
+          })
+        }
+      )
+      req.on('error', e => { clearTimeout(timer); reject(e) })
+      req.end()
+    })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 阶段二实现：独立 mihomo 进程 + checkip 获取出口 IP + 本地 mmdb 查询
+  // （与原版逻辑完全相同，仅拆分自独立函数）
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  async function phaseGeo({ proxy, node }, port) {
     const cacheKey = `geo-local:${node.server}:${node.port}:${node.type}`
-    let cachedGeo = null
     if (CACHE_ENABLED) {
-      try { const c = cache.get(cacheKey); if (c) cachedGeo = c } catch (_) {}
+      try {
+        const c = cache.get(cacheKey)
+        if (c) {
+          proxy._geo = c
+          $.info(`[geo] [${proxy.name}] 缓存: ${c.country} / ${c.isp}`)
+          return
+        }
+      } catch (_) {}
     }
 
     const tmpDir     = await fs.mkdtemp(path.join(os.tmpdir(), 'geo-'))
     const configPath = path.join(tmpDir, 'config.yaml')
-    // 节点名用简单 ASCII，避免特殊字符破坏 YAML
-    const safeNode = { ...node, name: `proxy-${index}` }
-    await fs.writeFile(configPath, buildConfig(safeNode, port), 'utf8')
+    await fs.writeFile(configPath, buildSingleConfig(node, port), 'utf8')
 
     let proc = null
     try {
@@ -157,28 +284,9 @@ async function operator(proxies = [], targetPlatform, context) {
       proc.stderr.on('data', d => { const l = d.toString().trim(); if (l) stderrLines.push(l) })
       proc.on('error', e => $.error(`[geo] [${proxy.name}] spawn 错误: ${e.message}`))
 
-      // 等待 mihomo 端口就绪
       const ready = await waitForPort(port, 8000)
       if (!ready) {
         $.error(`[geo] [${proxy.name}] mihomo 未能启动 (port ${port}): ${stderrLines.slice(-2).join(' | ')}`)
-        return
-      }
-
-      // ── 步骤一：延迟测试 ─────────────────────────────────────────────────────
-      const latency = await testLatency(TEST_URL, port, TEST_TIMEOUT)
-      if (latency === null) {
-        $.info(`[geo] [${proxy.name}] ✗ 延迟测试不通，已舍弃`)
-        return
-      }
-      $.info(`[geo] [${proxy.name}] ✓ 延迟: ${latency}ms`)
-
-      // 延迟测试通过，取消舍弃标记
-      proxy._remove = false
-
-      // ── 步骤二：地理位置（优先命中缓存） ────────────────────────────────────
-      if (cachedGeo) {
-        proxy._geo = cachedGeo
-        $.info(`[geo] [${proxy.name}] 缓存: ${cachedGeo.country} / ${cachedGeo.isp}`)
         return
       }
 
@@ -190,7 +298,7 @@ async function operator(proxies = [], targetPlatform, context) {
         return
       }
 
-      // 本地 mmdb 查询
+      // 本地 mmdb 查询，毫秒级，无网络请求
       const geo = queryGeo(ip)
       proxy._geo = geo
       $.info(`[geo] [${proxy.name}] ${ip} → ${geo.country} / ${geo.isp}`)
@@ -201,25 +309,15 @@ async function operator(proxies = [], targetPlatform, context) {
     } catch (e) {
       $.error(`[geo] [${proxy.name}] 检测异常: ${e.message || e}`)
     } finally {
-      if (proc) {
-        try {
-          if (IS_WINDOWS) {
-            spawn('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { stdio: 'ignore', shell: false })
-          } else {
-            proc.kill('SIGTERM')
-          }
-        } catch (_) {}
-      }
+      killProc(proc)
       try { await fs.rm(tmpDir, { recursive: true, force: true }) } catch (_) {}
     }
   }
 
   // ─── 通过代理获取出口 IP ──────────────────────────────────────────────────────
-  // checkip.amazonaws.com 返回纯文本 IP，HTTP/HTTPS 都支持
 
   function fetchIP(port) {
     const url = 'http://checkip.amazonaws.com/'
-    const http = require('http')
     return new Promise(resolve => {
       const timer = setTimeout(() => { req.destroy(); resolve(null) }, IP_TIMEOUT)
       const req = http.request({
@@ -234,7 +332,6 @@ async function operator(proxies = [], targetPlatform, context) {
         res.on('end', () => {
           clearTimeout(timer)
           const ip = raw.trim()
-          // 校验是否为合法 IPv4
           resolve(/^(\d{1,3}\.){3}\d{1,3}$/.test(ip) ? ip : null)
         })
       })
@@ -263,36 +360,40 @@ async function operator(proxies = [], targetPlatform, context) {
     return { country, isp }
   }
 
-  // ─── 延迟测试 ─────────────────────────────────────────────────────────────────
-  // 只有返回 2xx 才算通，mihomo 返回 502 表示节点不通
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 工具函数
+  // ══════════════════════════════════════════════════════════════════════════════
 
-  function testLatency(url, port, timeout) {
-    const http = require('http')
-    return new Promise(resolve => {
-      const start = Date.now()
-      const timer = setTimeout(() => { req.destroy(); resolve(null) }, timeout)
-      const req = http.request({
-        host: '127.0.0.1',
-        port,
-        method: 'GET',
-        path: url,
-        headers: { Host: new (require('url').URL)(url).host, 'User-Agent': 'curl/7.88.0', 'Proxy-Connection': 'keep-alive' },
-      }, res => {
-        clearTimeout(timer)
-        res.resume()
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          res.on('end', () => resolve(Date.now() - start))
-          res.on('error', () => resolve(null))
-        } else {
-          resolve(null)
-        }
-      })
-      req.on('error', () => { clearTimeout(timer); resolve(null) })
-      req.end()
+  function spawnMihomo(tmpDir, configPath) {
+    const proc = spawn(MIHOMO_PATH, ['-d', tmpDir, '-f', configPath], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      detached: false,
+      shell: false,
     })
+    proc.stderr.on('data', d => {
+      const lines = d.toString().trim().split('\n')
+      for (const line of lines) {
+        if (line && (line.includes('level=error') || line.includes('level=fatal'))) {
+          $.error(`[mihomo] ${line}`)
+        }
+      }
+    })
+    proc.on('error', e => $.error(`[geo] spawn 失败: ${e.message}`))
+    return proc
   }
 
-  // ─── 端口轮询 ─────────────────────────────────────────────────────────────────
+  function killProc(proc) {
+    if (!proc) return
+    try {
+      if (IS_WINDOWS) {
+        spawn('taskkill', ['/pid', String(proc.pid), '/f', '/t'], { stdio: 'ignore', shell: false })
+      } else {
+        proc.kill('SIGTERM')
+      }
+    } catch (_) {}
+  }
+
+  // ─── 等待端口可连接 ───────────────────────────────────────────────────────────
 
   function waitForPort(port, maxMs = 8000, interval = 200) {
     return new Promise(resolve => {
@@ -308,13 +409,13 @@ async function operator(proxies = [], targetPlatform, context) {
     })
   }
 
-  // ─── 构建 mihomo 配置 ─────────────────────────────────────────────────────────
+  // ─── 构建单节点 mihomo 配置（阶段二） ────────────────────────────────────────
 
-  function buildConfig(node, port) {
+  function buildSingleConfig(node, port) {
     return [
-      `mixed-port: ${port}`, 'allow-lan: false', 'log-level: info', 'ipv6: false', '',
+      `mixed-port: ${port}`, 'allow-lan: false', 'log-level: warning', 'ipv6: false', '',
       'proxies:', '  - ' + nodeToYaml(node), '',
-      'proxy-groups:', '  - name: PROXY', '    type: select', '    proxies:', `      - ${node.name}`, '',
+      'proxy-groups:', '  - name: PROXY', '    type: select', '    proxies:', `      - "${node.name}"`, '',
       'rules:', '  - MATCH,PROXY',
     ].join('\n')
   }
@@ -359,7 +460,6 @@ async function operator(proxies = [], targetPlatform, context) {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   function createMmdbReader(buf) {
-    // 找到元数据分隔符 \xab\xcd\xef + "MaxMind.com"
     const MARKER = [0xab, 0xcd, 0xef, 0x4d, 0x61, 0x78, 0x4d, 0x69, 0x6e, 0x64, 0x2e, 0x63, 0x6f, 0x6d]
     let markerPos = -1
     outer: for (let i = buf.length - MARKER.length; i >= 0; i--) {
@@ -371,17 +471,15 @@ async function operator(proxies = [], targetPlatform, context) {
     }
     if (markerPos < 0) throw new Error('无效的 mmdb 文件：找不到元数据标记')
 
-    // 解析元数据（元数据本身也是 mmdb 数据格式编码的）
     const [meta] = decodeValue(buf, markerPos + MARKER.length, 0)
 
-    const nodeCount      = meta.node_count
-    const recordSize     = meta.record_size
-    const ipVersion      = meta.ip_version
-    const nodeByteSize   = recordSize * 2 / 8
-    const searchTreeSize = nodeCount * nodeByteSize
-    const dataSectionStart = searchTreeSize + 16  // 16 字节零值分隔符
+    const nodeCount        = meta.node_count
+    const recordSize       = meta.record_size
+    const ipVersion        = meta.ip_version
+    const nodeByteSize     = recordSize * 2 / 8
+    const searchTreeSize   = nodeCount * nodeByteSize
+    const dataSectionStart = searchTreeSize + 16
 
-    // 读取搜索树中某节点的左（bit=0）或右（bit=1）子节点编号
     function getNodeChild(nodeNum, bit) {
       const off = nodeNum * nodeByteSize
       if (recordSize === 24) {
@@ -395,26 +493,22 @@ async function operator(proxies = [], targetPlatform, context) {
           : (((buf[off + 3] & 0x0f) << 24) | (buf[off + 4] << 16) | (buf[off + 5] << 8) | buf[off + 6]) >>> 0
       }
       if (recordSize === 32) {
-        return bit === 0
-          ? buf.readUInt32BE(off)
-          : buf.readUInt32BE(off + 4)
+        return bit === 0 ? buf.readUInt32BE(off) : buf.readUInt32BE(off + 4)
       }
       throw new Error(`不支持的 record_size: ${recordSize}`)
     }
 
-    // IPv4 地址查询：返回数据记录对象，找不到返回 null
     function lookup(ip) {
       const parts = ip.split('.').map(Number)
       if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return null
 
-      // IPv6 数据库中 IPv4 映射节点从第 96 个节点开始遍历
       let node = ipVersion === 6 ? 96 : 0
 
       for (const octet of parts) {
         for (let bit = 7; bit >= 0; bit--) {
           node = getNodeChild(node, (octet >> bit) & 1)
           if (node >= nodeCount) {
-            if (node === nodeCount) return null  // 空记录
+            if (node === nodeCount) return null
             const dataOffset = dataSectionStart + (node - nodeCount - 16)
             const [record] = decodeValue(buf, dataOffset, dataSectionStart)
             return record
@@ -426,18 +520,13 @@ async function operator(proxies = [], targetPlatform, context) {
 
     return { lookup }
 
-    // ── mmdb 数据段解码 ─────────────────────────────────────────────────────────
-    // 返回 [value, nextOffset]
-
     function decodeValue(buf, offset, dataStart) {
       const ctrl = buf[offset++]
       let type = (ctrl >> 5) & 0x7
       let size = ctrl & 0x1f
 
-      // type=0 表示扩展类型，下一字节 + 7 为真实类型
       if (type === 0) { type = buf[offset++] + 7 }
 
-      // 指针类型单独处理（size 字段含义不同）
       if (type === 1) {
         const psize = (size >> 3) & 0x3
         const v     = size & 0x7
@@ -455,7 +544,6 @@ async function operator(proxies = [], targetPlatform, context) {
         return [val, offset]
       }
 
-      // 普通类型的 size 扩展解码
       if (size === 29) {
         size = buf[offset++] + 29
       } else if (size === 30) {
@@ -465,27 +553,23 @@ async function operator(proxies = [], targetPlatform, context) {
       }
 
       switch (type) {
-        case 2: {  // UTF-8 字符串
+        case 2: {
           const s = buf.slice(offset, offset + size).toString('utf8')
           return [s, offset + size]
         }
-        case 3: {  // double (8 字节)
-          return [buf.readDoubleBE(offset), offset + size]
-        }
-        case 4: {  // bytes
-          return [buf.slice(offset, offset + size), offset + size]
-        }
-        case 5: {  // uint16
+        case 3: return [buf.readDoubleBE(offset), offset + size]
+        case 4: return [buf.slice(offset, offset + size), offset + size]
+        case 5: {
           let v = 0
           for (let i = 0; i < size; i++) v = (v << 8) | buf[offset + i]
           return [v >>> 0, offset + size]
         }
-        case 6: {  // uint32
+        case 6: {
           let v = 0
           for (let i = 0; i < size; i++) v = (v * 256 + buf[offset + i]) >>> 0
           return [v, offset + size]
         }
-        case 7: {  // map（键值对）
+        case 7: {
           const map = {}
           let pos = offset
           for (let i = 0; i < size; i++) {
@@ -496,18 +580,18 @@ async function operator(proxies = [], targetPlatform, context) {
           }
           return [map, pos]
         }
-        case 8: {  // int32
+        case 8: {
           let v = 0
           for (let i = 0; i < size; i++) v = (v << 8) | buf[offset + i]
           if (size > 0 && (buf[offset] & 0x80)) v = v - (1 << (size * 8))
           return [v, offset + size]
         }
-        case 9: {  // uint64（JS 精度有限，取低 6 字节足够）
+        case 9: {
           let v = 0
           for (let i = 0; i < Math.min(size, 6); i++) v = v * 256 + buf[offset + i]
           return [v, offset + size]
         }
-        case 11: {  // array
+        case 11: {
           const arr = []
           let pos = offset
           for (let i = 0; i < size; i++) {
@@ -516,14 +600,9 @@ async function operator(proxies = [], targetPlatform, context) {
           }
           return [arr, pos]
         }
-        case 14: {  // boolean
-          return [size !== 0, offset]
-        }
-        case 15: {  // float (4 字节)
-          return [buf.readFloatBE(offset), offset + size]
-        }
-        default:
-          return [null, offset + size]
+        case 14: return [size !== 0, offset]
+        case 15: return [buf.readFloatBE(offset), offset + size]
+        default: return [null, offset + size]
       }
     }
   }
