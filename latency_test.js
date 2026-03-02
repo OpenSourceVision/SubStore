@@ -6,7 +6,7 @@
  *
  * 参数说明:
  * - [mihomo_path]       mihomo 二进制绝对路径（可选，自动搜索默认位置）
- * - [api_port]          External Controller 端口，默认: 9090
+ * - [api_port]          External Controller 端口，默认: 9191
  * - [proxy_port]        mihomo 混合代理端口，默认: 14000
  * - [test_url]          延迟测试 URL，默认: http://www.gstatic.com/generate_204
  * - [test_timeout]      延迟测试超时(毫秒)，默认: 5000
