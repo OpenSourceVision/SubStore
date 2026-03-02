@@ -35,7 +35,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const TEST_TIMEOUT      = parseInt($arguments.test_timeout      || 5000)
   const TEST_COUNT        = parseInt($arguments.test_count        || 3)
   const DELAY_CONCURRENCY = parseInt($arguments.delay_concurrency || 10)
-  const API_PORT          = parseInt($arguments.api_port          || 9090)
+  const API_PORT          = parseInt($arguments.api_port          || 9191)
   const PROXY_PORT        = parseInt($arguments.proxy_port        || 14000)
 
   // ─── 缓存参数 ──────────────────────────────────────────────────────────────
