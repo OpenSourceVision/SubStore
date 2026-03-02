@@ -5,16 +5,16 @@
  * 命名格式: 国家 序号 ISP（序号按同组累计，两位数补零）
  *
  * 参数说明:
- * - [内核路径]    mihomo 二进制绝对路径（可选，自动搜索默认位置）
- * - [API端口]       External Controller 端口，默认: 9090
- * - [代理端口]     mihomo 混合代理端口，默认: 14000
- * - [查询地址]        地理查询 API URL，默认: http://ip-api.com/json/?fields=country,isp,org,city
- * - [查询超时]    单次查询超时(毫秒)，默认: 8000
- * - [命名模板]    命名模板，支持 {country} {seq} {isp} {org} {city}，默认: {country} {seq} {isp}
- * - [失败处理]  查询失败处理: keep（保留原名）| remove（丢弃节点），默认: keep
- * - [缓存有效期]  缓存有效期（小时），0 表示永不过期，默认: 72
- * - [强制刷新]    是否强制忽略缓存重新查询: true | false，默认: false
- * - [缓存键]      自定义缓存存储键名前缀，默认: geo_cache
+ * - [内核路径]       mihomo 二进制绝对路径（可选，自动搜索默认位置）
+ * - [API端口]       External Controller 端口，默认: 9292
+ * - [代理端口]      mihomo 混合代理端口，默认: 14000
+ * - [查询地址]      地理查询 API URL，默认: http://ip-api.com/json/?fields=country,isp,org,city
+ * - [查询超时]      单次查询超时(毫秒)，默认: 8000
+ * - [命名模板]      命名模板，支持 {country} {seq} {isp} {org} {city}，默认: {country} {seq} {isp}
+ * - [失败处理]      查询失败处理: keep（保留原名）| remove（丢弃节点），默认: keep
+ * - [缓存有效期]    缓存有效期（小时），0 表示永不过期，默认: 72
+ * - [强制刷新]      是否强制忽略缓存重新查询: true | false，默认: false
+ * - [缓存键]        自定义缓存存储键名前缀，默认: geo_cache
  */
 
 async function operator(proxies = [], targetPlatform, context) {
@@ -30,7 +30,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const GEO_TIMEOUT   = parseInt($arguments["查询超时"] || 8000)
   const NAME_FORMAT   = $arguments["命名模板"]   || '{country} {seq} {isp}'
   const FALLBACK_NAME = $arguments["失败处理"]   || 'keep'
-  const API_PORT      = parseInt($arguments["API端口"]   || 9090)
+  const API_PORT      = parseInt($arguments["API端口"]   || 9292)
   const PROXY_PORT    = parseInt($arguments["代理端口"]  || 14000)
   const CACHE_TTL_H   = parseFloat($arguments["缓存有效期"] ?? 72)   // 小时，0=永不过期
   const FORCE_REFRESH = String($arguments["强制刷新"] || 'false').toLowerCase() === 'true'
