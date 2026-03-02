@@ -2,6 +2,7 @@
  * 节点延迟测试脚本（仅测速，不查地理）
  *
  * 单进程 + mihomo API 并发测速，不通的节点直接舍弃，通过的节点保留原名。
+ * 支持缓存：成功测速的节点结果缓存，失败不缓存，命中缓存直接跳过重测。
  *
  * 参数说明:
  * - [mihomo_path]       mihomo 二进制绝对路径（可选，自动搜索默认位置）
@@ -11,7 +12,15 @@
  * - [test_timeout]      延迟测试超时(毫秒)，默认: 5000
  * - [test_count]        每节点采样次数，取最小值，默认: 3
  * - [delay_concurrency] 并发数，默认: 10
+ * - [cache_enabled]     是否启用缓存，默认: true
+ * - [cache_ttl]         缓存有效期(毫秒)，默认: 3600000（1小时）
  */
+
+// ─── 进程级全局缓存（Node.js 原生，跨调用复用）────────────────────────────────
+if (!global.__latencyCache) {
+  global.__latencyCache = new Map() // key => { delay, expireAt }
+}
+const _cache = global.__latencyCache
 
 async function operator(proxies = [], targetPlatform, context) {
   const $ = $substore
@@ -28,6 +37,10 @@ async function operator(proxies = [], targetPlatform, context) {
   const DELAY_CONCURRENCY = parseInt($arguments.delay_concurrency || 10)
   const API_PORT          = parseInt($arguments.api_port          || 9090)
   const PROXY_PORT        = parseInt($arguments.proxy_port        || 14000)
+
+  // ─── 缓存参数 ──────────────────────────────────────────────────────────────
+  const CACHE_ENABLED = ($arguments.cache_enabled ?? 'true') !== 'false'
+  const CACHE_TTL     = parseInt($arguments.cache_ttl || 3600000) // 默认 1 小时
 
   const IS_WINDOWS = os.platform() === 'win32'
   const BIN_NAME   = IS_WINDOWS ? 'mihomo.exe' : 'mihomo'
@@ -65,12 +78,44 @@ async function operator(proxies = [], targetPlatform, context) {
   }
 
   $.info(`[latency] mihomo: ${MIHOMO_PATH}`)
+  $.info(`[latency] 缓存: ${CACHE_ENABLED ? `启用 (TTL=${CACHE_TTL}ms / ${(CACHE_TTL/3600000).toFixed(2)}h)` : '禁用'}`)
   $.info(`[latency] 共 ${proxies.length} 个节点，并发: ${DELAY_CONCURRENCY}，采样: ${TEST_COUNT} 次`)
+
+  // ─── 缓存 key：以 类型+服务器+端口 作为唯一标识 ────────────────────────────
+  function cacheKey(proxy) {
+    return `${proxy.type}|${proxy.server}|${proxy.port}`
+  }
+
+  function getCache(proxy) {
+    if (!CACHE_ENABLED) return null
+    const entry = _cache.get(cacheKey(proxy))
+    if (!entry) return null
+    if (Date.now() > entry.expireAt) {
+      _cache.delete(cacheKey(proxy))
+      return null
+    }
+    return entry.delay
+  }
+
+  function setCache(proxy, delay) {
+    if (!CACHE_ENABLED) return
+    _cache.set(cacheKey(proxy), { delay, expireAt: Date.now() + CACHE_TTL })
+  }
 
   // ─── 转换节点格式 ─────────────────────────────────────────────────────────────
 
-  const converted = []
+  const converted   = []  // 需要实际测速的节点
+  const cachedPass  = []  // 命中缓存且通过的节点
+
   proxies.forEach((proxy, index) => {
+    const cached = getCache(proxy)
+    if (cached !== null) {
+      // 命中缓存
+      $.info(`[latency] [${proxy.name}] ✓ ${cached}ms (缓存)`)
+      cachedPass.push(proxy)
+      return
+    }
+
     try {
       const node = ProxyUtils.produce([{ ...proxy }], 'ClashMeta', 'internal')?.[0]
       if (node) {
@@ -84,90 +129,99 @@ async function operator(proxies = [], targetPlatform, context) {
     }
   })
 
-  $.info(`[latency] 可检测节点: ${converted.length}/${proxies.length}`)
+  $.info(`[latency] 缓存命中: ${cachedPass.length}，待测速: ${converted.length}/${proxies.length}`)
   proxies.forEach(p => { p._remove = true })
+  // 缓存命中的先标记保留
+  cachedPass.forEach(p => { p._remove = false })
 
-  // ─── 写配置，启动单个 mihomo ──────────────────────────────────────────────────
+  // 如果全部命中缓存，无需启动 mihomo
+  if (converted.length > 0) {
+    // ─── 写配置，启动单个 mihomo ────────────────────────────────────────────────
 
-  const tmpDir     = await fs.mkdtemp(path.join(os.tmpdir(), 'lat-'))
-  const configPath = path.join(tmpDir, 'config.yaml')
+    const tmpDir     = await fs.mkdtemp(path.join(os.tmpdir(), 'lat-'))
+    const configPath = path.join(tmpDir, 'config.yaml')
 
-  const proxyLines = converted.map(i => '  - ' + nodeToYaml(i.node)).join('\n')
-  const proxyNames = converted.map(i => `      - "${i.node.name}"`).join('\n')
-  await fs.writeFile(configPath, [
-    `mixed-port: ${PROXY_PORT}`,
-    'allow-lan: false',
-    'log-level: warning',
-    'ipv6: false',
-    `external-controller: 127.0.0.1:${API_PORT}`,
-    "external-controller-cors-allow-origins: ['*']",
-    '',
-    'proxies:',
-    proxyLines,
-    '',
-    'proxy-groups:',
-    '  - name: PROXY',
-    '    type: select',
-    '    proxies:',
-    proxyNames,
-    '',
-    'rules:',
-    '  - MATCH,PROXY',
-  ].join('\n'), 'utf8')
+    const proxyLines = converted.map(i => '  - ' + nodeToYaml(i.node)).join('\n')
+    const proxyNames = converted.map(i => `      - "${i.node.name}"`).join('\n')
+    await fs.writeFile(configPath, [
+      `mixed-port: ${PROXY_PORT}`,
+      'allow-lan: false',
+      'log-level: warning',
+      'ipv6: false',
+      `external-controller: 127.0.0.1:${API_PORT}`,
+      "external-controller-cors-allow-origins: ['*']",
+      '',
+      'proxies:',
+      proxyLines,
+      '',
+      'proxy-groups:',
+      '  - name: PROXY',
+      '    type: select',
+      '    proxies:',
+      proxyNames,
+      '',
+      'rules:',
+      '  - MATCH,PROXY',
+    ].join('\n'), 'utf8')
 
-  let proc = null
-  try {
-    proc = spawnMihomo(tmpDir, configPath)
+    let proc = null
+    try {
+      proc = spawnMihomo(tmpDir, configPath)
 
-    const ready = await waitForPort(API_PORT, 12000)
-    if (!ready) {
-      $.error(`[latency] mihomo API 端口 ${API_PORT} 未就绪，终止`)
-      return proxies.filter(p => !p._remove)
-    }
-    $.info(`[latency] mihomo 就绪，开始测速（${converted.length} 个节点，每批 ${DELAY_CONCURRENCY} 个，采样 ${TEST_COUNT} 次取最小值）...`)
-
-    // ─── 并发测速 ───────────────────────────────────────────────────────────────
-
-    const results = new Array(converted.length).fill(null)
-    await runConcurrent(
-      converted.map((item, i) => async () => {
-        const samples = []
-        for (let n = 0; n < TEST_COUNT; n++) {
-          const d = await queryDelay(item.node.name).catch(() => null)
-          if (typeof d === 'number' && d > 0) samples.push(d)
-          else break
-        }
-        results[i] = samples.length === TEST_COUNT ? Math.min(...samples) : null
-      }),
-      DELAY_CONCURRENCY
-    )
-
-    // ─── 处理结果，逐条打印日志 ─────────────────────────────────────────────────
-
-    let passCount = 0
-    let failCount = 0
-    results.forEach((r, i) => {
-      const { proxy } = converted[i]
-      if (typeof r === 'number' && r > 0) {
-        $.info(`[latency] [${proxy.name}] ✓ ${r}ms`)
-        proxy._remove = false
-        passCount++
-      } else {
-        $.info(`[latency] [${proxy.name}] ✗ 超时或不通`)
-        failCount++
+      const ready = await waitForPort(API_PORT, 12000)
+      if (!ready) {
+        $.error(`[latency] mihomo API 端口 ${API_PORT} 未就绪，终止`)
+        proxies = proxies.filter(p => !p._remove)
+        proxies.forEach(p => { delete p._remove })
+        return proxies
       }
-    })
+      $.info(`[latency] mihomo 就绪，开始测速（${converted.length} 个节点，每批 ${DELAY_CONCURRENCY} 个，采样 ${TEST_COUNT} 次取最小值）...`)
 
-    $.info(`[latency] 完成 — 通过: ${passCount}，舍弃: ${failCount}，共: ${converted.length}`)
+      // ─── 并发测速 ─────────────────────────────────────────────────────────────
 
-  } finally {
-    killProc(proc)
-    try { await fs.rm(tmpDir, { recursive: true, force: true }) } catch (_) {}
+      const results = new Array(converted.length).fill(null)
+      await runConcurrent(
+        converted.map((item, i) => async () => {
+          const samples = []
+          for (let n = 0; n < TEST_COUNT; n++) {
+            const d = await queryDelay(item.node.name).catch(() => null)
+            if (typeof d === 'number' && d > 0) samples.push(d)
+            else break
+          }
+          results[i] = samples.length === TEST_COUNT ? Math.min(...samples) : null
+        }),
+        DELAY_CONCURRENCY
+      )
+
+      // ─── 处理结果，逐条打印日志 ───────────────────────────────────────────────
+
+      let passCount = 0
+      let failCount = 0
+      results.forEach((r, i) => {
+        const { proxy } = converted[i]
+        if (typeof r === 'number' && r > 0) {
+          $.info(`[latency] [${proxy.name}] ✓ ${r}ms`)
+          proxy._remove = false
+          setCache(proxy, r)  // ✅ 成功才写缓存
+          passCount++
+        } else {
+          $.info(`[latency] [${proxy.name}] ✗ 超时或不通`)
+          // ❌ 失败不写缓存
+          failCount++
+        }
+      })
+
+      $.info(`[latency] 完成 — 通过: ${passCount}，舍弃: ${failCount}，共: ${converted.length}`)
+
+    } finally {
+      killProc(proc)
+      try { await fs.rm(tmpDir, { recursive: true, force: true }) } catch (_) {}
+    }
   }
 
   proxies = proxies.filter(p => !p._remove)
   proxies.forEach(p => { delete p._remove })
-  $.info(`[latency] 剩余节点: ${proxies.length}`)
+  $.info(`[latency] 剩余节点: ${proxies.length}（含缓存命中: ${cachedPass.filter(p => proxies.includes(p)).length}）`)
   return proxies
 
   // ─── 调用 mihomo API 测单节点延迟 ─────────────────────────────────────────────
