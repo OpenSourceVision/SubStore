@@ -6,7 +6,7 @@
  *
  * 参数说明:
  * - [内核路径]    mihomo 二进制绝对路径（可选，自动搜索默认位置）
- * - [API端口]       External Controller 端口，默认: 9090
+ * - [API端口]       External Controller 端口，默认: 9292
  * - [代理端口]     mihomo 混合代理端口，默认: 14000
  * - [查询地址]        地理查询 API URL，默认: http://ip-api.com/json/?fields=country,isp,org,city
  * - [查询超时]    单次查询超时(毫秒)，默认: 8000
@@ -31,7 +31,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const GEO_TIMEOUT   = parseInt($arguments["查询超时"] || 8000)
   const NAME_FORMAT   = $arguments["命名模板"]   || '{country} {seq} {isp}'
   const FALLBACK_NAME = $arguments["失败处理"]   || 'keep'
-  const API_PORT      = parseInt($arguments["API端口"]   || 9090)
+  const API_PORT      = parseInt($arguments["API端口"]   || 9292)
   const PROXY_PORT    = parseInt($arguments["代理端口"]  || 14000)
   const CACHE_TTL_H   = parseFloat($arguments["缓存有效期"] ?? 72)   // 小时，0=永不过期
   const FORCE_REFRESH = String($arguments["强制刷新"] || 'false').toLowerCase() === 'true'
