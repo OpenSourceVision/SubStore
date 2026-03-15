@@ -20,7 +20,7 @@
 
 ### 功能说明
 
-对代理节点进行协议感知的精准去重。不同协议使用不同的字段组合生成唯一指纹，保留首次出现的节点，移除后续重复项，并清除节点对象上的内部属性 `_geo` 与 `_entrance`。
+对代理节点进行协议感知的精准去重。不同协议使用不同的字段组合生成唯一指纹，保留首次出现的节点，移除后续重复项，并清除节点对象上的内部属性 _geo 与 _entrance。
 
 ### 各协议参与去重的字段
 
@@ -42,12 +42,12 @@
 
 ### 特意排除的字段
 
-- `name`：不同订阅来源节点名称不同，不参与比较
-- `flow`：仅影响客户端行为，不影响服务端认证
-- `up` / `down`：Hysteria 带宽限速参数，非认证参数
-- `congestion-controller`：TUIC 拥塞控制算法，性能参数非认证参数
-- `protocol-param` / `obfs-param`：SSR 可选辅助参数，来源不稳定
-- `cipher`（仅 vmess）：各来源写法不统一（auto / 空均常见）
+- name：不同订阅来源节点名称不同，不参与比较
+- flow：仅影响客户端行为，不影响服务端认证
+- up / down：Hysteria 带宽限速参数，非认证参数
+- congestion-controller：TUIC 拥塞控制算法，性能参数非认证参数
+- protocol-param / obfs-param：SSR 可选辅助参数，来源不稳定
+- cipher（仅 vmess）：各来源写法不统一（auto / 空均常见）
 
 **参数：** 无
 
@@ -71,15 +71,15 @@
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `mihomo_path` | mihomo 二进制绝对路径（可选） | 自动搜索 |
-| `api_port` | External Controller 端口 | `9191` |
-| `proxy_port` | mihomo 混合代理端口 | `14000` |
-| `test_url` | 延迟测试 URL | `http://www.gstatic.com/generate_204` |
-| `test_timeout` | 延迟测试超时（毫秒） | `5000` |
-| `test_count` | 每节点采样次数，取最小值 | `3` |
-| `delay_concurrency` | 并发测速节点数 | `10` |
-| `cache_enabled` | 是否启用缓存 | `true` |
-| `cache_ttl` | 缓存有效期（毫秒） | `3600000`（1 小时） |
+| mihomo_path | mihomo 二进制绝对路径（可选） | 自动搜索 |
+| api_port | External Controller 端口 | 9191 |
+| proxy_port | mihomo 混合代理端口 | 14000 |
+| test_url | 延迟测试 URL | `http://www.gstatic.com/generate_204` |
+| test_timeout | 延迟测试超时（毫秒） | 5000 |
+| test_count | 每节点采样次数，取最小值 | 3 |
+| delay_concurrency | 并发测速节点数 | 10 |
+| cache_enabled | 是否启用缓存 | true |
+| cache_ttl | 缓存有效期（毫秒） | 3600000（1 小时） |
 
 ---
 
@@ -99,20 +99,20 @@
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `内核路径` | mihomo 二进制绝对路径（可选） | 自动搜索 |
-| `API端口` | External Controller 端口 | `9292` |
-| `代理端口` | mihomo 混合代理端口 | `14000` |
-| `查询地址` | 地理查询 API URL | `http://ip-api.com/json/?fields=country,isp,org,city&lang=zh-CN` |
-| `查询超时` | 单次查询超时（毫秒） | `8000` |
-| `命名模板` | 支持 `{country}` `{seq}` `{isp}` `{org}` `{city}` | `{country} {seq} {isp}` |
-| `失败处理` | `keep` 保留原名 \| `remove` 丢弃节点 | `keep` |
-| `缓存有效期` | 缓存有效期（小时），`0` 表示永不过期 | `72` |
-| `强制刷新` | 忽略缓存重新查询 | `false` |
-| `缓存键` | 缓存文件名前缀 | `geo_cache` |
+| 内核路径 | mihomo 二进制绝对路径（可选） | 自动搜索 |
+| API端口 | External Controller 端口 | 9292 |
+| 代理端口 | mihomo 混合代理端口 | 14000 |
+| 查询地址 | 地理查询 API URL | `http://ip-api.com/json/?fields=country,isp,org,city&lang=zh-CN` |
+| 查询超时 | 单次查询超时（毫秒） | 8000 |
+| 命名模板 | 支持 {country} {seq} {isp} {org} {city} | {country} {seq} {isp} |
+| 失败处理 | keep 保留原名 \| remove 丢弃节点 | keep |
+| 缓存有效期 | 缓存有效期（小时），0 表示永不过期 | 72 |
+| 强制刷新 | 忽略缓存重新查询 | false |
+| 缓存键 | 缓存文件名前缀 | geo_cache |
 
 ### 缓存机制
 
-缓存以 JSON 文件形式持久化存储于 mihomo 同目录，文件名由 `缓存键` 参数决定（如 `geo_cache.json`）。节点指纹由 `类型|服务器|端口` 组成。查询成功写入缓存，失败不写入。
+缓存以 JSON 文件形式持久化存储于 mihomo 同目录，文件名由 缓存键 参数决定（如 `geo_cache.json`）。节点指纹由 `类型|服务器|端口` 组成。查询成功写入缓存，失败不写入。
 
 ---
 
@@ -140,22 +140,24 @@
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `mihomo_path` | mihomo 二进制绝对路径（可选） | 自动搜索 |
-| `mmdb_dir` | mmdb 目录绝对路径（可选） | `<Sub-Store目录>/mmdb` |
-| `api_port` | External Controller 端口 | `9090` |
-| `test_url` | 延迟测试 URL | `http://www.gstatic.com/generate_204` |
-| `test_timeout` | 延迟测试超时（毫秒） | `5000` |
-| `concurrency` | 地理查询并发数 | `5` |
-| `delay_concurrency` | 延迟测试并发数 | `10` |
-| `ip_timeout` | IP 查询超时（毫秒） | `10000` |
-| `start_port` | 本地代理起始端口 | `14000` |
-| `cache` | 启用缓存 | `true` |
+| mihomo_path | mihomo 二进制绝对路径（可选） | 自动搜索 |
+| mmdb_dir | mmdb 目录绝对路径（可选） | `<Sub-Store目录>/mmdb` |
+| api_port | External Controller 端口 | 9090 |
+| test_url | 延迟测试 URL | `http://www.gstatic.com/generate_204` |
+| test_timeout | 延迟测试超时（毫秒） | 5000 |
+| concurrency | 地理查询并发数 | 5 |
+| delay_concurrency | 延迟测试并发数 | 10 |
+| ip_timeout | IP 查询超时（毫秒） | 10000 |
+| start_port | 本地代理起始端口 | 14000 |
+| cache | 启用缓存 | true |
 
 适用于对在线 API 有速率限制顾虑、节点数量大且频繁刷新，或网络环境不稳定的场景。
 
 ---
 
 ## rename.js
+
+> 本脚本来自 [Keywos/rule](https://github.com/Keywos/rule)，感谢作者的开源贡献。
 
 ### 功能说明
 
@@ -167,40 +169,40 @@
 
 | 参数 | 说明 | 可选值 |
 |------|------|--------|
-| `in` | 指定输入节点名的语言类型（不填则自动判断，优先级：中文 → 国旗 → 英文全称 → 英文缩写） | `zh` / `cn`、`en` / `us`、`flag` / `gq`、`quan` |
-| `out` | 输出节点名格式 | `zh` / `cn`（中文）、`en` / `us`（英文缩写）、`flag` / `gq`（国旗）、`quan`（英文全称） |
+| in | 指定输入节点名的语言类型（不填则自动判断，优先级：中文 → 国旗 → 英文全称 → 英文缩写） | zh / cn、en / us、flag / gq、quan |
+| out | 输出节点名格式 | zh / cn（中文）、en / us（英文缩写）、flag / gq（国旗）、quan（英文全称） |
 
 #### 分隔符与序号
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `fgf` | 各字段之间的分隔符 | 空格 |
-| `sn` | 国家名与序号之间的分隔符 | 空格 |
-| `one` | 清理只有一个节点的地区的 `01` 后缀 | `false` |
+| fgf | 各字段之间的分隔符 | 空格 |
+| sn | 国家名与序号之间的分隔符 | 空格 |
+| one | 清理只有一个节点的地区的 01 后缀 | false |
 
 #### 前缀
 
 | 参数 | 说明 |
 |------|------|
-| `name` | 给节点添加机场名称前缀 |
-| `nf` | 将 `name` 前缀置于最前面（默认在国家名之后） |
+| name | 给节点添加机场名称前缀 |
+| nf | 将 name 前缀置于最前面（默认在国家名之后） |
 
 #### 保留与过滤
 
 | 参数 | 说明 |
 |------|------|
-| `nm` | 保留未匹配到地区的节点（不丢弃） |
-| `flag` | 在节点名前添加国旗 emoji |
-| `blkey` | 保留节点名中的自定义关键词，多个用 `+` 连接；支持用 `>` 替换，如 `GPT>新名字` |
-| `blgd` | 保留 IPLC、IEPL、家宽、ˣ² 等特殊标识 |
-| `bl` | 正则匹配保留倍率标识（如 `0.1x`、`3×`、`2倍`） |
-| `blpx` | 配合 `bl` 使用，将保留倍率标识的节点排列到末尾 |
-| `nx` | 过滤掉高倍率节点，仅保留 1 倍率与不显示倍率的 |
-| `blnx` | 仅保留高倍率节点 |
-| `clear` | 清理含套餐、到期、流量等机场信息字样的节点 |
-| `blockquic` | 设置节点的 block-quic 属性：`on` 阻止 / `off` 不阻止 |
-| `key` | 仅保留港、美、日、新、韩、土耳其中的特定节点 |
-| `debug` | 调试模式 |
+| nm | 保留未匹配到地区的节点（不丢弃） |
+| flag | 在节点名前添加国旗 emoji |
+| blkey | 保留节点名中的自定义关键词，多个用 + 连接；支持用 > 替换，如 GPT>新名字 |
+| blgd | 保留 IPLC、IEPL、家宽、ˣ² 等特殊标识 |
+| bl | 正则匹配保留倍率标识（如 0.1x、3×、2倍） |
+| blpx | 配合 bl 使用，将保留倍率标识的节点排列到末尾 |
+| nx | 过滤掉高倍率节点，仅保留 1 倍率与不显示倍率的 |
+| blnx | 仅保留高倍率节点 |
+| clear | 清理含套餐、到期、流量等机场信息字样的节点 |
+| blockquic | 设置节点的 block-quic 属性：on 阻止 / off 不阻止 |
+| key | 仅保留港、美、日、新、韩、土耳其中的特定节点 |
+| debug | 调试模式 |
 
 ---
 
