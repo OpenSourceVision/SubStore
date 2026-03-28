@@ -185,7 +185,7 @@ async function operator(proxies = [], targetPlatform, context) {
 
     await fs.writeFile(configPath, [
       `mixed-port: ${PROXY_PORT}`,
-      'allow-lan: false',
+      'allow-lan: true',
       'log-level: warning',
       'ipv6: true',
       `external-controller: 127.0.0.1:${API_PORT}`,
