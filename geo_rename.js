@@ -187,7 +187,7 @@ async function operator(proxies = [], targetPlatform, context) {
       `mixed-port: ${PROXY_PORT}`,
       'allow-lan: false',
       'log-level: warning',
-      'ipv6: false',
+      'ipv6: true',
       `external-controller: 127.0.0.1:${API_PORT}`,
       "external-controller-cors-allow-origins: ['*']",
       '',
