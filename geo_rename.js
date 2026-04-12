@@ -12,7 +12,7 @@
  * - [查询超时]      单次查询超时(毫秒)，默认: 8000
  * - [命名模板]      命名模板，支持 {country} {seq} {isp} {org} {city}，默认: {country} {seq} {isp}
  * - [失败处理]      查询失败处理: keep（保留原名）| remove（丢弃节点），默认: keep
- * - [缓存有效期]    缓存有效期（小时），0 表示永不过期，默认: 72
+ * - [缓存有效期]    缓存有效期（小时），0 表示永不过期，默认: 24
  * - [强制刷新]      是否强制忽略缓存重新查询: true | false，默认: false
  * - [缓存键]        自定义缓存存储键名前缀，默认: geo_cache
  */
@@ -32,7 +32,7 @@ async function operator(proxies = [], targetPlatform, context) {
   const FALLBACK_NAME = $arguments["失败处理"]   || 'keep'
   const API_PORT      = parseInt($arguments["API端口"]   || 9292)
   const PROXY_PORT    = parseInt($arguments["代理端口"]  || 14000)
-  const CACHE_TTL_H   = parseFloat($arguments["缓存有效期"] ?? 72)   // 小时，0=永不过期
+  const CACHE_TTL_H   = parseFloat($arguments["缓存有效期"] ?? 24)   // 小时，0=永不过期
   const FORCE_REFRESH = String($arguments["强制刷新"] || 'false').toLowerCase() === 'true'
   const CACHE_KEY_PFX = $arguments["缓存键"] || 'geo_cache'
 
