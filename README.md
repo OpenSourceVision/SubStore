@@ -1,6 +1,8 @@
 # 🧩 Sub-Store 节点处理脚本
 
-本项目提供五个用于 Sub-Store 的节点处理脚本，覆盖节点去重、延迟测试、地理重命名（在线多实例版与本地数据库版）以及节点名称标准化重命名。
+本项目提供四个用于 Sub-Store 的节点处理脚本：节点去重、延迟测速、按出口 IP 的地理重命名、节点名称标准化。
+
+文件名前缀就是执行顺序：`1 → 2 → 3 → 4`。脚本"远程链接"填本地路径时写成 `/sub-store/Plug-in/1-Deduplication.js` 这样——开头的单个 `/` 指"当前磁盘根目录"，Sub-Store 后端从项目根目录（含 `sub-store.bundle.js` 的那层）启动，所以它正好指向本目录。
 
 ---
 
@@ -8,15 +10,14 @@
 
 | 脚本 | 功能 |
 |------|------|
-| `Deduplication.js` | 🔍 多协议精准去重，清理内部属性 |
-| `latency_test.js` | ⚡ 延迟测速，过滤不通节点，保留原名 |
-| `geo_rename_2.js` | 🌐 在线 API 地理重命名，多实例并发，支持缓存与自定义模板 |
-| `geo_rename_local.js` | 🗄️ 本地 mmdb 数据库地理重命名，无网络依赖 |
-| `rename.js` | ✏️ 按地区关键词标准化节点名称，支持多语言输出 |
+| `1-Deduplication.js` | 🔍 多协议精准去重，清理内部属性 |
+| `2-latency_test.js` | ⚡ 延迟测速，过滤不通节点，保留原名 |
+| `3-geo_rename.js` | 🌐 在线 API 地理重命名，多实例并发，支持缓存与自定义模板 |
+| `4-rename.js` | ✏️ 按地区关键词标准化节点名称，支持多语言输出 |
 
 ---
 
-## 🔍 Deduplication.js
+## 🔍 1-Deduplication.js
 
 ### 功能说明
 
@@ -55,7 +56,7 @@
 
 ---
 
-## ⚡ latency_test.js
+## ⚡ 2-latency_test.js
 
 ### 功能说明
 
@@ -85,19 +86,19 @@
 
 ---
 
-## 🌐 geo_rename_2.js
+## 🌐 3-geo_rename.js
 
 ### 功能说明
 
-多实例并发版：把待查节点按 `i % 并发数` 平均分片，每片各起一个独立 mihomo 实例，片内串行 `切换节点 → 请求地理 API → 取数据`，整体速度约为单实例的 N 倍。每个实例都会先核对自己的分组节点表再采信结果，实例身份校验不过只影响所在分片（该片节点按查询失败处理），其它分片照常。
+按 `i % 并发数` 把待查节点平均分片，每片各起一个独立 mihomo 实例，片内串行 `切换节点 → 请求地理 API → 取数据`，整体速度约为单实例的 N 倍。每个实例都会先核对自己的分组节点表再采信结果，实例身份校验不过只影响所在分片（该片节点按查询失败处理），其它分片照常。
 
-支持文件持久化缓存、强制刷新，以及查询失败时保留原名或丢弃节点两种策略。查询失败、切换失败或内核不可用时一律保留原名，不会把节点改成"未知 01"这类假结果。分组序号一律按 `proxies` 原顺序统计，因此 `美国 01 / 02` 的编号与并发数无关。
+支持文件持久化缓存与强制刷新。查询失败、切换失败或内核不可用时不会把节点改成"未知 01"这类假结果，默认保留原名（`失败处理=remove` 则丢弃）。分组序号一律按 `proxies` 原顺序统计，因此 `美国 01 / 02` 的编号与并发数无关。
 
 重命名示例：`美国 01 Cloudflare`、`日本 02 NTT`
 
 ### 🔧 前置条件
 
-同 `latency_test.js`，需要 mihomo 内核。
+同 `2-latency_test.js`，需要 mihomo 内核。
 
 ### 参数说明
 
@@ -125,51 +126,7 @@
 
 ---
 
-## 🗄️ geo_rename_local.js
-
-### 功能说明
-
-与 `geo_rename.js` 功能相同，但地理查询不依赖在线 API，改用本地 MaxMind GeoLite2 数据库（mmdb 格式）在毫秒内完成查询，无网络请求，无速率限制。
-
-工作流程分为两个阶段：
-
-1. ⚡ **延迟测试**：单进程 + mihomo API 并发测速，每节点最多采样 3 次取最小值，有一次成功即判定可用，全部失败才舍弃
-2. 🔎 **地理查询**：对存活节点各起一个独立 mihomo 实例，通过 `ip_url` 获取出口 IP，再查询本地 mmdb
-
-阶段二每个实例都会在配置里临时开一个 External Controller，先核对分组节点表确实是本节点，再相信它给出的出口 IP —— 端口被别的客户端占住、实例没起来时判定串台，该节点保留原名，绝不张冠李戴。阶段一完全跑不起来时（内核缺失等）则整个脚本跳过测速与重命名，保留全部节点原名。
-
-脚本内置完整的 mmdb 二进制格式解析器，支持 24 / 28 / 32 位 record size 及所有数据类型，无需任何外部 npm 依赖。
-
-### 🔧 前置条件
-
-1. **mihomo 内核**（同上）
-2. **MaxMind GeoLite2 数据库**，放置于 Sub-Store 同目录下的 `mmdb/` 文件夹：
-   - `mmdb/GeoLite2-Country.mmdb`
-   - `mmdb/GeoLite2-ASN.mmdb`
-   - 下载：[MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data)（免费注册后可获取）
-
-### 参数说明
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| mihomo_path | mihomo 二进制绝对路径（可选） | 自动搜索 |
-| mmdb_dir | mmdb 目录绝对路径（可选） | `<Sub-Store目录>/mmdb` |
-| api_port | 阶段一 External Controller 首选端口，被占用时自动改用系统分配的空闲端口 | 9090 |
-| test_url | 延迟测试 URL | `http://www.gstatic.com/generate_204` |
-| test_timeout | 延迟测试超时（毫秒） | 5000 |
-| test_count | 阶段一每节点采样次数，取最小值；有一次成功即判定可用 | 3 |
-| ip_url | 出口 IP 探测地址，必须为 `http://`，可自建 | `http://checkip.amazonaws.com/` |
-| concurrency | 地理查询并发数 | 5 |
-| delay_concurrency | 延迟测试并发数 | 10 |
-| ip_timeout | IP 查询超时（毫秒） | 10000 |
-| start_port | 阶段一混合代理首选端口，被占用时同样自动换端口；阶段二的代理与控制端口一律由系统分配 | 14000 |
-| cache | 启用缓存（存于 Sub-Store 的 scriptResourceCache，查不出的结果不写入） | true |
-
-> 适用于对在线 API 有速率限制顾虑、节点数量大且频繁刷新，或网络环境不稳定的场景。
-
----
-
-## ✏️ rename.js
+## ✏️ 4-rename.js
 
 > 本脚本来自 [Keywos/rule](https://github.com/Keywos/rule)，感谢作者的开源贡献。
 
@@ -224,9 +181,8 @@
 
 | 场景 | 推荐脚本 |
 |------|----------|
-| 仅需去重清理 | `Deduplication.js` |
-| 仅需过滤不通节点 | `latency_test.js` |
-| 按出口 IP 重命名、节点数较多 | `geo_rename_2.js`（并发数 2–4） |
-| 不想依赖在线地理 API / 节点量大且频繁刷新 | `geo_rename_local.js` |
-| 需要标准化节点名称 | `rename.js` |
-| 完整工作流 | `Deduplication.js` → `latency_test.js` → `geo_rename_2.js` 或 `geo_rename_local.js` |
+| 仅需去重清理 | `1-Deduplication.js` |
+| 仅需过滤不通节点 | `2-latency_test.js` |
+| 按出口 IP 重命名 | `3-geo_rename.js`（节点多时把 并发数 调到 2–4） |
+| 只想按地区关键词标准化名称、不查出口 IP | `4-rename.js` |
+| 完整工作流 | `1-Deduplication.js` → `2-latency_test.js` → `3-geo_rename.js` → `4-rename.js` |
