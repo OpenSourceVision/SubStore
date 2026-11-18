@@ -128,7 +128,9 @@ async function operator(proxies = [], targetPlatform, context) {
 
   // ─── 缓存 key：以 类型+服务器+端口 作为唯一标识 ────────────────────────────
   function cacheKey(proxy) {
-    return `${proxy.type}|${proxy.server}|${proxy.port}`
+    // 认证凭据纳入指纹：同一 server:port 换密码/uuid 后不应沿用旧结果
+    const auth = proxy.password ?? proxy.uuid ?? proxy['auth-str'] ?? proxy.token ?? proxy['private-key'] ?? ''
+    return `${proxy.type}|${proxy.server}|${proxy.port}|${auth}`
   }
 
   function getCache(proxy) {
@@ -165,6 +167,19 @@ async function operator(proxies = [], targetPlatform, context) {
       if (node) {
         // 用 proxy_N 而不是原名：原名可能带空格/emoji/重名，会破坏 /proxies/{name}/delay 这种 API 路径
         node.name = `proxy_${index}`
+
+        // ─── 字段规范化 ──────────────────────────────────────────────────────
+        // Sub-Store 转换层对「Clash YAML 来源」的节点会原样透传 allowInsecure，
+        // 而 mihomo 只认 skip-cert-verify。未知字段被内核静默忽略（加载不报错），
+        // 于是自签证书节点 TLS 校验失败 → 测速超时 → 被本脚本误判为"不通"而丢弃。
+        // 统一映射，覆盖 hysteria2 / vless / vmess / trojan / tuic / anytls / hysteria。
+        // （URI 来源的 insecure=1 已被解析器正确转为 skip-cert-verify，此处不受影响）
+        const ai = node.allowInsecure
+        if (ai === true || ai === 1 || ai === '1' || ai === 'true') {
+          node['skip-cert-verify'] = true
+        }
+        delete node.allowInsecure
+
         converted.push({ proxy, node })
       } else {
         $.error(`[latency] [${proxy.name}] 无法转换为 mihomo 格式，跳过`)
@@ -391,18 +406,20 @@ async function operator(proxies = [], targetPlatform, context) {
   }
 
   function nodeToYaml(node) {
+    // YAML 双引号字符串需转义 \ " 以及控制字符；漏掉 \n/\r/\t 会破坏缩进结构
+    const q = s => `"${String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')}"`
     const parts = []
     for (const [k, v] of Object.entries(node)) {
       if (v === undefined || v === null) continue
       if (Array.isArray(v)) {
-        const items = v.map(i => typeof i === 'object' ? JSON.stringify(i) : String(i)).join(', ')
+        const items = v.map(i => typeof i === 'object' ? JSON.stringify(i) : q(i)).join(', ')
         parts.push(`${k}: [${items}]`)
       } else if (typeof v === 'object') {
         parts.push(`${k}: ${JSON.stringify(v)}`)
       } else if (typeof v === 'boolean' || typeof v === 'number') {
         parts.push(`${k}: ${v}`)
       } else {
-        parts.push(`${k}: "${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
+        parts.push(`${k}: ${q(v)}`)
       }
     }
     return parts.join('\n    ')
